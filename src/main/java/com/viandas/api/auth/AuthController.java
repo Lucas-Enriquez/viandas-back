@@ -1,5 +1,6 @@
 package com.viandas.api.auth;
 
+import com.viandas.api.auth.dto.BootstrapCookRequest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,7 +28,7 @@ public class AuthController {
 	}
 
 	@PostMapping("/internal/bootstrap/cook")
-	AuthService.AuthResponse bootstrapCook(@Valid @RequestBody AuthService.BootstrapCookRequest request) {
+	AuthService.AuthResponse bootstrapCook(@Valid @RequestBody BootstrapCookRequest request) {
 		return authService.bootstrapCook(request);
 	}
 }
