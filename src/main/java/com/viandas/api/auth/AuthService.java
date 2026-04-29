@@ -2,9 +2,12 @@ package com.viandas.api.auth;
 
 import java.time.Instant;
 
-import com.viandas.api.auth.dto.BootstrapCookRequest;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
+import com.viandas.api.auth.dto.request.BootstrapCookRequest;
+import com.viandas.api.auth.dto.request.GoogleLoginRequest;
+import com.viandas.api.auth.dto.request.LoginRequest;
+import com.viandas.api.auth.dto.response.AuthResponse;
+import com.viandas.api.auth.dto.response.AuthUserResponse;
+import com.viandas.api.shared.helpers.Texts;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -59,8 +62,10 @@ public class AuthService {
             throw ApiException.conflict("Email already exists");
         }
 
-        User cook = userRepository.save(new User(request.name()
-                .trim(), email, passwordEncoder.encode(request.password()), UserRole.COOK));
+        User user = new User(Texts.trim(request.name()), email, passwordEncoder.encode(request.password()), UserRole.COOK);
+
+        User cook = userRepository.save(user);
+
         return authResponse(cook);
     }
 
@@ -135,32 +140,5 @@ public class AuthService {
 
     private static String normalizeEmail(String email) {
         return email.trim().toLowerCase();
-    }
-
-    public record LoginRequest(
-            @NotBlank(message = "El mail es obligatorio")
-            @Email(message = "El mail debe ser válido")
-            String email,
-
-            @NotBlank(message = "La contraseña es obligatoria")
-            String password
-    ) {
-    }
-
-    public record GoogleLoginRequest(String idToken) {
-    }
-
-    public record AuthUserResponse(
-            Long id,
-            String name,
-            String email,
-            UserRole role
-    ) {
-    }
-
-    public record AuthResponse(
-            String accessToken,
-            AuthUserResponse user
-    ) {
     }
 }

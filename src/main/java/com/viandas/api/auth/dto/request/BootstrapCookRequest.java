@@ -1,4 +1,4 @@
-package com.viandas.api.auth.dto;
+package com.viandas.api.auth.dto.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
