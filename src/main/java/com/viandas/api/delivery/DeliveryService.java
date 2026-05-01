@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.viandas.api.auth.CurrentUser;
+import com.viandas.api.auth.security.CurrentUser;
 import com.viandas.api.menu.Menu;
 import com.viandas.api.menu.MenuService;
 import com.viandas.api.notification.NotificationService;

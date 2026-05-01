@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import com.viandas.api.auth.CurrentUser;
+import com.viandas.api.auth.security.CurrentUser;
 import com.viandas.api.company.CompanyRepository;
 import com.viandas.api.delivery.DeliveryPublicSignal;
 import com.viandas.api.delivery.DeliverySession;

@@ -1,4 +1,4 @@
-package com.viandas.api.auth;
+package com.viandas.api.auth.oauth;
 
 import java.net.URI;
 import java.net.URLEncoder;

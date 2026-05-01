@@ -1,4 +1,4 @@
-package com.viandas.api.auth;
+package com.viandas.api.auth.application;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -9,6 +9,14 @@ import com.viandas.api.auth.dto.request.LoginRequest;
 import com.viandas.api.auth.dto.request.RefreshTokenRequest;
 import com.viandas.api.auth.dto.response.AuthResponse;
 import com.viandas.api.auth.dto.response.AuthUserResponse;
+import com.viandas.api.auth.oauth.GoogleIdTokenValidator;
+import com.viandas.api.auth.oauth.GoogleProfile;
+import com.viandas.api.auth.oauth.OAuthAccount;
+import com.viandas.api.auth.oauth.OAuthAccountRepository;
+import com.viandas.api.auth.oauth.OAuthProvider;
+import com.viandas.api.auth.security.JwtService;
+import com.viandas.api.auth.token.RefreshToken;
+import com.viandas.api.auth.token.RefreshTokenRepository;
 import com.viandas.api.shared.TokenHasher;
 import com.viandas.api.shared.helpers.Texts;
 import org.springframework.beans.factory.annotation.Value;

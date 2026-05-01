@@ -42,7 +42,7 @@ public class InvitationService {
 	}
 
 	@Transactional
-	public InvitationResponse create(com.viandas.api.auth.CurrentUser currentUser, Long companyId, CreateInvitationRequest request) {
+	public InvitationResponse create(com.viandas.api.auth.security.CurrentUser currentUser, Long companyId, CreateInvitationRequest request) {
 		Company company = companyService.requireOwnedCompany(currentUser, companyId);
 		Invitation invitation = invitationRepository.save(new Invitation(company, request.email(), Instant.now().plusSeconds(72 * 60 * 60)));
 		return toResponse(invitation);

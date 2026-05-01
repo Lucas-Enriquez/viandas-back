@@ -7,7 +7,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.viandas.api.auth.CurrentUser;
+import com.viandas.api.auth.security.CurrentUser;
 import com.viandas.api.shared.ApiException;
 import com.viandas.api.shared.SlugGenerator;
 import com.viandas.api.user.User;

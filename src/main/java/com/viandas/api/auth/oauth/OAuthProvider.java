@@ -1,4 +1,4 @@
-package com.viandas.api.auth;
+package com.viandas.api.auth.oauth;
 
 public enum OAuthProvider {
 	GOOGLE

@@ -1,4 +1,4 @@
-package com.viandas.api.auth;
+package com.viandas.api.auth.security;
 
 import java.io.IOException;
 import java.util.List;

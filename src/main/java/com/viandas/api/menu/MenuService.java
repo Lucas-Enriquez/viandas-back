@@ -16,7 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.viandas.api.auth.CurrentUser;
+import com.viandas.api.auth.security.CurrentUser;
 import com.viandas.api.company.Company;
 import com.viandas.api.company.CompanyService;
 import com.viandas.api.notification.NotificationService;

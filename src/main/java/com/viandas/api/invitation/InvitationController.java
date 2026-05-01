@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.viandas.api.auth.SecurityUtils;
+import com.viandas.api.auth.security.SecurityUtils;
 
 @RestController
 @RequestMapping

@@ -1,4 +1,4 @@
-package com.viandas.api.auth;
+package com.viandas.api.auth.token;
 
 import java.util.Optional;
 import java.util.UUID;

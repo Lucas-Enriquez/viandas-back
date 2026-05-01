@@ -1,5 +1,6 @@
-package com.viandas.api.auth;
+package com.viandas.api.auth.web;
 
+import com.viandas.api.auth.application.AuthService;
 import com.viandas.api.auth.dto.request.BootstrapCookRequest;
 import com.viandas.api.auth.dto.request.GoogleLoginRequest;
 import com.viandas.api.auth.dto.request.LoginRequest;
