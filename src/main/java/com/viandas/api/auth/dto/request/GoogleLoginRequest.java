@@ -1,4 +1,8 @@
 package com.viandas.api.auth.dto.request;
 
-public record GoogleLoginRequest(String idToken) {
+import jakarta.validation.constraints.NotBlank;
+
+public record GoogleLoginRequest(
+		@NotBlank(message = "El idToken es obligatorio")
+		String idToken) {
 }

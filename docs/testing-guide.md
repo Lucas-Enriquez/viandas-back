@@ -15,6 +15,8 @@ DB_PASSWORD=<tu-password-postgres>
 
 VIANDAS_BOOTSTRAP_KEY=dev-bootstrap-key
 VIANDAS_JWT_SECRET=dev-secret-change-me-dev-secret-change-me
+VIANDAS_JWT_EXPIRATION_MINUTES=15
+VIANDAS_REFRESH_EXPIRATION_DAYS=30
 VIANDAS_PUBLIC_BASE_URL=http://localhost:8080
 
 # Vacio para probar Google Login en modo dev.
@@ -37,6 +39,8 @@ Notas:
 
 - `VIANDAS_BOOTSTRAP_KEY` protege `POST /internal/bootstrap/cook`.
 - `VIANDAS_JWT_SECRET` debe ser largo y privado en entornos reales.
+- `VIANDAS_JWT_EXPIRATION_MINUTES` define cuanto dura el access token.
+- `VIANDAS_REFRESH_EXPIRATION_DAYS` define cuanto dura el refresh token.
 - `VIANDAS_PUBLIC_BASE_URL` se usa para generar el link que despues compartiria la app.
 - Si `GOOGLE_CLIENT_ID` esta vacio, `/auth/google` acepta tokens dev como `dev:cliente@test.com:Cliente Demo`.
 - Si configuras `GOOGLE_CLIENT_ID`, `/auth/google` valida el ID token contra Google.
@@ -80,10 +84,11 @@ curl -s -X POST "http://localhost:8080/internal/bootstrap/cook" \
   }'
 ```
 
-La respuesta trae `accessToken`. Copialo para las siguientes llamadas:
+La respuesta trae `accessToken` y `refreshToken`. Copia el `accessToken` para las siguientes llamadas:
 
 ```text
 COOK_TOKEN=<accessToken de la respuesta>
+COOK_REFRESH_TOKEN=<refreshToken de la respuesta>
 ```
 
 Si el cook ya existe, logueate:
@@ -94,6 +99,26 @@ curl -s -X POST "http://localhost:8080/auth/login" \
   -d '{
     "email": "cook@viandas.test",
     "password": "secret123"
+  }'
+```
+
+Renovar sesion:
+
+```bash
+curl -s -X POST "http://localhost:8080/auth/refresh" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refreshToken": "COOK_REFRESH_TOKEN"
+  }'
+```
+
+Cerrar sesion:
+
+```bash
+curl -s -X POST "http://localhost:8080/auth/logout" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refreshToken": "COOK_REFRESH_TOKEN"
   }'
 ```
 
@@ -231,10 +256,11 @@ curl -s -X POST "http://localhost:8080/auth/google" \
   }'
 ```
 
-La respuesta trae `accessToken`.
+La respuesta trae `accessToken` y `refreshToken`.
 
 ```text
 CUSTOMER_TOKEN=<accessToken del cliente>
+CUSTOMER_REFRESH_TOKEN=<refreshToken del cliente>
 ```
 
 ## 10. Crear pedido publico

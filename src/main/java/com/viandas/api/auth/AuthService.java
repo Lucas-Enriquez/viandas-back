@@ -1,20 +1,21 @@
 package com.viandas.api.auth;
 
+import java.time.Clock;
 import java.time.Instant;
 
 import com.viandas.api.auth.dto.request.BootstrapCookRequest;
 import com.viandas.api.auth.dto.request.GoogleLoginRequest;
 import com.viandas.api.auth.dto.request.LoginRequest;
+import com.viandas.api.auth.dto.request.RefreshTokenRequest;
 import com.viandas.api.auth.dto.response.AuthResponse;
 import com.viandas.api.auth.dto.response.AuthUserResponse;
+import com.viandas.api.shared.TokenHasher;
 import com.viandas.api.shared.helpers.Texts;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.viandas.api.company.CompanyMembershipRepository;
-import com.viandas.api.company.CompanyRepository;
 import com.viandas.api.shared.ApiException;
 import com.viandas.api.user.User;
 import com.viandas.api.user.UserRepository;
@@ -24,31 +25,37 @@ import com.viandas.api.user.UserRole;
 public class AuthService {
     private final UserRepository userRepository;
     private final OAuthAccountRepository oAuthAccountRepository;
-    private final CompanyMembershipRepository companyMembershipRepository;
-    private final CompanyRepository companyRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final GoogleIdTokenValidator googleIdTokenValidator;
+    private final TokenHasher tokenHasher;
+    private final Clock clock;
     private final String bootstrapKey;
+    private final long refreshExpirationDays;
 
     public AuthService(
             UserRepository userRepository,
             OAuthAccountRepository oAuthAccountRepository,
-            CompanyMembershipRepository companyMembershipRepository,
-            CompanyRepository companyRepository,
+            RefreshTokenRepository refreshTokenRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             GoogleIdTokenValidator googleIdTokenValidator,
-            @Value("${viandas.bootstrap.key}") String bootstrapKey
+            TokenHasher tokenHasher,
+            Clock clock,
+            @Value("${viandas.bootstrap.key}") String bootstrapKey,
+            @Value("${viandas.refresh.expiration-days}") long refreshExpirationDays
     ) {
         this.userRepository = userRepository;
         this.oAuthAccountRepository = oAuthAccountRepository;
-        this.companyMembershipRepository = companyMembershipRepository;
-        this.companyRepository = companyRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.googleIdTokenValidator = googleIdTokenValidator;
+        this.tokenHasher = tokenHasher;
+        this.clock = clock;
         this.bootstrapKey = bootstrapKey;
+        this.refreshExpirationDays = refreshExpirationDays;
     }
 
     @Transactional
@@ -69,6 +76,7 @@ public class AuthService {
         return authResponse(cook);
     }
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         String email = normalizeEmail(request.email());
 
@@ -111,31 +119,68 @@ public class AuthService {
         return authResponse(user);
     }
 
-    private Long resolveCompanyClaim(User user, Long requestedCompanyId) {
-        if (user.getRole() == UserRole.COOK) {
-            if (requestedCompanyId != null && companyRepository.findByIdAndCookId(requestedCompanyId, user.getId())
-                    .isEmpty()) {
-                throw ApiException.forbidden("Company does not belong to cook");
-            }
-            return requestedCompanyId;
+    @Transactional
+    public AuthResponse refresh(RefreshTokenRequest request) {
+        String refreshToken = request.refreshToken();
+        String tokenHash = tokenHasher.hash(refreshToken);
+        RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> ApiException.unauthorized("Invalid refresh token"));
+        Instant now = Instant.now(clock);
+
+        if (!storedToken.isActive(now)) {
+            throw ApiException.unauthorized("Invalid refresh token");
         }
-        if (user.getRole() == UserRole.EMPLOYEE) {
-            if (requestedCompanyId != null) {
-                if (!companyMembershipRepository.existsByCompanyIdAndUserId(requestedCompanyId, user.getId())) {
-                    throw ApiException.forbidden("User does not belong to company");
-                }
-                return requestedCompanyId;
-            }
-            return companyMembershipRepository.findFirstByUserIdOrderById(user.getId())
-                    .map(membership -> membership.getCompany().getId())
-                    .orElse(null);
+
+        User user = storedToken.getUser();
+        if (!user.isEnabled()) {
+            storedToken.setRevokedAt(now);
+            throw ApiException.unauthorized("Invalid refresh token");
         }
-        return null;
+
+        String newRefreshToken = tokenHasher.newToken();
+        String newRefreshTokenHash = tokenHasher.hash(newRefreshToken);
+        RefreshToken replacement = new RefreshToken(
+                user,
+                newRefreshTokenHash,
+                now,
+                now.plusSeconds(refreshExpirationDays * 24 * 60 * 60));
+
+        storedToken.setRevokedAt(now);
+        storedToken.setReplacedByTokenHash(newRefreshTokenHash);
+        refreshTokenRepository.save(replacement);
+
+        return authResponse(user, newRefreshToken);
+    }
+
+    @Transactional
+    public void logout(RefreshTokenRequest request) {
+        String tokenHash = tokenHasher.hash(request.refreshToken());
+        refreshTokenRepository.findByTokenHash(tokenHash).ifPresent(refreshToken -> {
+            if (refreshToken.getRevokedAt() == null) {
+                refreshToken.setRevokedAt(Instant.now(clock));
+            }
+        });
     }
 
     private AuthResponse authResponse(User user) {
-        String token = jwtService.createToken(user.getId(), user.getEmail(), user.getRole());
-        return new AuthResponse(token, new AuthUserResponse(user.getId(), user.getName(), user.getEmail(), user.getRole()));
+        String refreshToken = tokenHasher.newToken();
+        String refreshTokenHash = tokenHasher.hash(refreshToken);
+        Instant now = Instant.now(clock);
+        refreshTokenRepository.save(new RefreshToken(
+                user,
+                refreshTokenHash,
+                now,
+                now.plusSeconds(refreshExpirationDays * 24 * 60 * 60)));
+
+        return authResponse(user, refreshToken);
+    }
+
+    private AuthResponse authResponse(User user, String refreshToken) {
+        String accessToken = jwtService.createToken(user.getId(), user.getEmail(), user.getRole());
+        return new AuthResponse(
+                accessToken,
+                refreshToken,
+                new AuthUserResponse(user.getId(), user.getName(), user.getEmail(), user.getRole()));
     }
 
     private static String normalizeEmail(String email) {

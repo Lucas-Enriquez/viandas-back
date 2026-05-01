@@ -59,9 +59,8 @@ public class JwtService {
 
 			Long userId = claims.get("userId", Long.class);
 			UserRole role = UserRole.valueOf(claims.get("role", String.class));
-			Long companyId = claims.get("companyId", Long.class);
 
-			return new CurrentUser(userId, role, companyId);
+			return new CurrentUser(userId, role);
 		} catch (JwtException | IllegalArgumentException exception) {
 			throw ApiException.unauthorized("Invalid token");
 		}
