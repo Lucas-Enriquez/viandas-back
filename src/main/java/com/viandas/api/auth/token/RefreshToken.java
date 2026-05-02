@@ -3,7 +3,7 @@ package com.viandas.api.auth.token;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.viandas.api.user.User;
+import com.viandas.api.user.domain.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

@@ -1,6 +1,6 @@
 package com.viandas.api.auth.dto.response;
 
-import com.viandas.api.user.UserRole;
+import com.viandas.api.user.domain.UserRole;
 
 public record AuthUserResponse(
         Long id,

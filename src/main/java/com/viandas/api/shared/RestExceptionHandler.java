@@ -2,6 +2,7 @@ package com.viandas.api.shared;
 
 import java.net.URI;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -16,6 +18,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.exc.InvalidFormatException;
 
 @RestControllerAdvice
 public class RestExceptionHandler {
@@ -50,12 +54,62 @@ public class RestExceptionHandler {
         return ResponseEntity.badRequest().body(problem);
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<ProblemDetail> handleUnreadableMessage(
+            HttpMessageNotReadableException exception,
+            HttpServletRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Request body is invalid or contains unsupported values!");
+
+        problem.setTitle("Invalid request body");
+        problem.setType(URI.create("https://api.viandas.local/problems/invalid-request-body"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("timestamp", Instant.now());
+
+        InvalidFormatException invalidFormat = findCause(exception, InvalidFormatException.class);
+        if (invalidFormat != null && invalidFormat.getTargetType().isEnum()) {
+            problem.setDetail("Invalid value for enum field");
+            problem.setProperty("field", formatJsonPath(invalidFormat.getPath()));
+            problem.setProperty("rejectedValue", invalidFormat.getValue());
+            problem.setProperty("acceptedValues", enumValues(invalidFormat.getTargetType()));
+        }
+
+        return ResponseEntity.badRequest().body(problem);
+    }
+
     private static FieldViolation toViolation(FieldError error) {
         return new FieldViolation(
                 error.getField(),
                 error.getDefaultMessage(),
                 error.getCode(),
                 error.getRejectedValue());
+    }
+
+    private static String formatJsonPath(List<JacksonException.Reference> path) {
+        return path.stream()
+                .map(JacksonException.Reference::getPropertyName)
+                .filter(field -> field != null && !field.isBlank())
+                .reduce((parent, child) -> parent + "." + child)
+                .orElse(null);
+    }
+
+    private static List<String> enumValues(Class<?> enumType) {
+        return Arrays.stream(enumType.getEnumConstants())
+                .map(Object::toString)
+                .toList();
+    }
+
+    private static <T extends Throwable> T findCause(Throwable throwable, Class<T> causeType) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (causeType.isInstance(current)) {
+                return causeType.cast(current);
+            }
+            current = current.getCause();
+        }
+        return null;
     }
 
     public record FieldViolation(
@@ -106,7 +160,8 @@ public class RestExceptionHandler {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     ResponseEntity<ProblemDetail> handleMethodNotSupported(
             HttpRequestMethodNotSupportedException exception,
-            HttpServletRequest request) {
+            HttpServletRequest request
+    ) {
 
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.METHOD_NOT_ALLOWED,

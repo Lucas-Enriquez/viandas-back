@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.viandas.api.shared.ApiException;
-import com.viandas.api.user.UserRole;
+import com.viandas.api.user.domain.UserRole;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;

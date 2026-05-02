@@ -24,6 +24,7 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/auth/**", "/internal/bootstrap/cook", "/invitations/**").permitAll()
 						.requestMatchers(HttpMethod.GET, "/public/menus/*/*").permitAll()
+						.requestMatchers(HttpMethod.POST, "/global-invitation/*/accept").permitAll()
 						.anyRequest().authenticated())
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 				.build();

@@ -25,9 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.viandas.api.shared.ApiException;
-import com.viandas.api.user.User;
-import com.viandas.api.user.UserRepository;
-import com.viandas.api.user.UserRole;
+import com.viandas.api.user.domain.User;
+import com.viandas.api.user.persistence.UserRepository;
+import com.viandas.api.user.domain.UserRole;
 
 @Service
 public class AuthService {

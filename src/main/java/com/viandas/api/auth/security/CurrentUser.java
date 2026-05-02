@@ -1,6 +1,6 @@
 package com.viandas.api.auth.security;
 
-import com.viandas.api.user.UserRole;
+import com.viandas.api.user.domain.UserRole;
 
 public record CurrentUser(Long userId, UserRole role) {
 	public boolean isCook() {
