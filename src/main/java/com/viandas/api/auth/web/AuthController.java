@@ -6,11 +6,10 @@ import com.viandas.api.auth.dto.request.GoogleLoginRequest;
 import com.viandas.api.auth.dto.request.LoginRequest;
 import com.viandas.api.auth.dto.request.RefreshTokenRequest;
 import com.viandas.api.auth.dto.response.AuthResponse;
-import org.springframework.http.HttpStatus;
+import com.viandas.api.shared.ApiResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -25,28 +24,28 @@ public class AuthController {
     }
 
     @PostMapping("/auth/login")
-    AuthResponse login(@Valid @RequestBody LoginRequest request) {
-        return authService.login(request);
+    ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+        return ApiResponse.ok("Sesion iniciada", authService.login(request));
     }
 
     @PostMapping("/auth/google")
-    AuthResponse google(@Valid @RequestBody GoogleLoginRequest request) {
-        return authService.googleLogin(request);
+    ApiResponse<AuthResponse> google(@Valid @RequestBody GoogleLoginRequest request) {
+        return ApiResponse.ok("Sesion iniciada con Google", authService.googleLogin(request));
     }
 
     @PostMapping("/auth/refresh")
-    AuthResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
-        return authService.refresh(request);
+    ApiResponse<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return ApiResponse.ok("Sesion renovada", authService.refresh(request));
     }
 
     @PostMapping("/auth/logout")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    void logout(@Valid @RequestBody RefreshTokenRequest request) {
+    ApiResponse<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
         authService.logout(request);
+        return ApiResponse.ok("Sesion cerrada", null);
     }
 
     @PostMapping("/internal/bootstrap/cook")
-    AuthResponse bootstrapCook(@Valid @RequestBody BootstrapCookRequest request) {
-        return authService.bootstrapCook(request);
+    ApiResponse<AuthResponse> bootstrapCook(@Valid @RequestBody BootstrapCookRequest request) {
+        return ApiResponse.ok("Cook creado", authService.bootstrapCook(request));
     }
 }

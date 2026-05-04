@@ -1,13 +1,11 @@
 package com.viandas.api.invitation.application;
 
 import com.viandas.api.auth.security.CurrentUser;
-import com.viandas.api.auth.security.SecurityUtils;
 import com.viandas.api.company.application.CompanyService;
 import com.viandas.api.company.domain.Company;
 import com.viandas.api.company.domain.CompanyMembership;
 import com.viandas.api.company.persistence.CompanyMembershipRepository;
 import com.viandas.api.invitation.domain.GlobalInvitation;
-import com.viandas.api.invitation.domain.Invitation;
 import com.viandas.api.invitation.dto.request.AcceptGlobalInvitationRequest;
 import com.viandas.api.invitation.dto.request.CreateGlobalInvitationRequest;
 import com.viandas.api.invitation.dto.response.AcceptGlobalInvitationResponse;
@@ -24,7 +22,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.UUID;
 
 @Service
 public class GlobalInvitationService {
@@ -63,6 +60,8 @@ public class GlobalInvitationService {
     ) {
         Company company = companyService.requireOwnedCompany(currentUser, companyId);
 
+        revokeExistingInvitation(companyId);
+
         GlobalInvitation invitation = new GlobalInvitation(
                 company,
                 Instant.now().plusSeconds(72 * 60 * 60)
@@ -79,13 +78,21 @@ public class GlobalInvitationService {
         return toResponse(saved, token);
     }
 
+    private void revokeExistingInvitation(Long companyId) {
+
+        globalInvitationRepository.findByCompanyIdAndActiveTrue(companyId)
+                .ifPresent(globalInvitation -> {
+                    globalInvitation.setActive(false);
+                    globalInvitation.setRevokedAt(Instant.now());
+                });
+    }
+
     @Transactional
     public AcceptGlobalInvitationResponse accept(String token, AcceptGlobalInvitationRequest request) {
         String tokenHash = tokenHasher.hash(token);
 
-        // Buscar por token hash existente en la db
         GlobalInvitation globalInvitation = globalInvitationRepository.findByTokenHashAndActiveTrue(tokenHash)
-                .orElseThrow(() -> ApiException.notFound("Invitación global no encontrada"));
+                .orElseThrow(() -> ApiException.notFound("Invitación global inválida"));
 
         Instant now = Instant.now();
 
@@ -127,7 +134,7 @@ public class GlobalInvitationService {
 
 
     private GlobalInvitationResponse toResponse(GlobalInvitation invitation, String token) {
-        String link = publicUrl + "/global-invitation/" + token;
+        String link = publicUrl + "/global-invitation/" + token + "/accept";
 
         return new GlobalInvitationResponse(
                 token,

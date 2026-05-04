@@ -7,6 +7,7 @@ import com.viandas.api.order.dto.request.StockBroadcastRequest;
 import com.viandas.api.order.dto.response.CurrentOrderResponse;
 import com.viandas.api.order.dto.response.OrderResponse;
 import com.viandas.api.order.dto.response.StockBroadcastResponse;
+import com.viandas.api.shared.ApiResponse;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -34,25 +35,25 @@ public class OrderController {
 	}
 
 	@PostMapping("/public/menus/{companySlug}/{date}/orders")
-	OrderResponse createPublicOrder(
+	ApiResponse<OrderResponse> createPublicOrder(
 			@PathVariable String companySlug,
 			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
 			@RequestParam("t") String token,
 			@Valid @RequestBody CreateOrderRequest request) {
-		return orderService.createPublicOrder(SecurityUtils.currentUser(), companySlug, date, token, request);
+		return ApiResponse.ok("Pedido creado", orderService.createPublicOrder(SecurityUtils.currentUser(), companySlug, date, token, request));
 	}
 
 	@GetMapping("/public/menus/{companySlug}/{date}/orders/current")
-	CurrentOrderResponse currentPublicOrder(
+	ApiResponse<CurrentOrderResponse> currentPublicOrder(
 			@PathVariable String companySlug,
 			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
 			@RequestParam("t") String token) {
-		return orderService.currentPublicOrder(SecurityUtils.currentUser(), companySlug, date, token);
+		return ApiResponse.ok("Pedido actual obtenido", orderService.currentPublicOrder(SecurityUtils.currentUser(), companySlug, date, token));
 	}
 
 	@GetMapping("/orders/today")
-	List<OrderResponse> today() {
-		return orderService.today(SecurityUtils.currentUser());
+	ApiResponse<List<OrderResponse>> today() {
+		return ApiResponse.ok("Pedidos de hoy obtenidos", orderService.today(SecurityUtils.currentUser()));
 	}
 
 	@GetMapping("/orders/stream")
@@ -61,27 +62,27 @@ public class OrderController {
 	}
 
 	@PatchMapping("/orders/{id}/preparing")
-	OrderResponse preparing(@PathVariable Long id) {
-		return orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.PREPARING);
+	ApiResponse<OrderResponse> preparing(@PathVariable Long id) {
+		return ApiResponse.ok("Pedido marcado como en preparacion", orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.PREPARING));
 	}
 
 	@PatchMapping("/orders/{id}/out-for-delivery")
-	OrderResponse outForDelivery(@PathVariable Long id) {
-		return orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.OUT_FOR_DELIVERY);
+	ApiResponse<OrderResponse> outForDelivery(@PathVariable Long id) {
+		return ApiResponse.ok("Pedido marcado como en reparto", orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.OUT_FOR_DELIVERY));
 	}
 
 	@PatchMapping("/orders/{id}/delivered")
-	OrderResponse delivered(@PathVariable Long id) {
-		return orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.DELIVERED);
+	ApiResponse<OrderResponse> delivered(@PathVariable Long id) {
+		return ApiResponse.ok("Pedido marcado como entregado", orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.DELIVERED));
 	}
 
 	@PatchMapping("/orders/{id}/cancel")
-	OrderResponse cancel(@PathVariable Long id) {
-		return orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.CANCELLED);
+	ApiResponse<OrderResponse> cancel(@PathVariable Long id) {
+		return ApiResponse.ok("Pedido cancelado", orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.CANCELLED));
 	}
 
 	@PostMapping("/stock-broadcast")
-	StockBroadcastResponse stockBroadcast(@Valid @RequestBody StockBroadcastRequest request) {
-		return orderService.stockBroadcast(SecurityUtils.currentUser(), request);
+	ApiResponse<StockBroadcastResponse> stockBroadcast(@Valid @RequestBody StockBroadcastRequest request) {
+		return ApiResponse.ok("Aviso de stock enviado", orderService.stockBroadcast(SecurityUtils.currentUser(), request));
 	}
 }

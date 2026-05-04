@@ -6,6 +6,7 @@ import com.viandas.api.invitation.dto.request.AcceptInvitationRequest;
 import com.viandas.api.invitation.dto.request.CreateGlobalInvitationRequest;
 import com.viandas.api.invitation.dto.request.CreateInvitationRequest;
 import com.viandas.api.invitation.dto.response.*;
+import com.viandas.api.shared.ApiResponse;
 
 import java.util.UUID;
 
@@ -31,30 +32,30 @@ public class InvitationController {
     }
 
     @PostMapping("/companies/{id}/global-invitation")
-    GlobalInvitationResponse create(@PathVariable Long id, @Valid @RequestBody CreateGlobalInvitationRequest request) {
-        return globalInvitationService.create(SecurityUtils.currentUser(), id, request);
+    ApiResponse<GlobalInvitationResponse> create(@PathVariable Long id, @Valid @RequestBody CreateGlobalInvitationRequest request) {
+        return ApiResponse.ok("Invitacion global creada", globalInvitationService.create(SecurityUtils.currentUser(), id, request));
     }
 
     @PostMapping("/global-invitation/{token}/accept")
-    AcceptGlobalInvitationResponse accept(
+    ApiResponse<AcceptGlobalInvitationResponse> accept(
             @PathVariable String token,
             @Valid @RequestBody AcceptGlobalInvitationRequest request
     ) {
-        return globalInvitationService.accept(token, request);
+        return ApiResponse.ok("Invitacion global aceptada", globalInvitationService.accept(token, request));
     }
 
     @PostMapping("/companies/{id}/invitations")
-    InvitationResponse create(@PathVariable Long id, @Valid @RequestBody CreateInvitationRequest request) {
-        return invitationService.create(SecurityUtils.currentUser(), id, request);
+    ApiResponse<InvitationResponse> create(@PathVariable Long id, @Valid @RequestBody CreateInvitationRequest request) {
+        return ApiResponse.ok("Invitacion creada", invitationService.create(SecurityUtils.currentUser(), id, request));
     }
 
     @GetMapping("/invitations/{token}")
-    InvitationValidationResponse validate(@PathVariable UUID token) {
-        return invitationService.validate(token);
+    ApiResponse<InvitationValidationResponse> validate(@PathVariable UUID token) {
+        return ApiResponse.ok("Invitacion obtenida", invitationService.validate(token));
     }
 
     @PostMapping("/invitations/{token}/accept")
-    AcceptInvitationResponse accept(@PathVariable UUID token, @Valid @RequestBody AcceptInvitationRequest request) {
-        return invitationService.accept(token, request);
+    ApiResponse<AcceptInvitationResponse> accept(@PathVariable UUID token, @Valid @RequestBody AcceptInvitationRequest request) {
+        return ApiResponse.ok("Invitacion aceptada", invitationService.accept(token, request));
     }
 }

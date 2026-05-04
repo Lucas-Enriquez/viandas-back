@@ -1,13 +1,16 @@
 package com.viandas.api.company.web;
 
-import com.viandas.api.company.application.*;
+import java.util.List;
+
+import com.viandas.api.auth.security.SecurityUtils;
+import com.viandas.api.company.application.CompanyService;
+import com.viandas.api.company.application.GeocodingService;
 import com.viandas.api.company.dto.request.CompanyLocationRequest;
 import com.viandas.api.company.dto.request.CompanyRequest;
 import com.viandas.api.company.dto.request.GeocodePreviewRequest;
 import com.viandas.api.company.dto.response.CompanyResponse;
 import com.viandas.api.company.dto.response.GeocodePreviewResponse;
-import java.util.List;
-
+import com.viandas.api.shared.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -17,47 +20,45 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.viandas.api.auth.security.SecurityUtils;
-
 @RestController
 @RequestMapping("/companies")
 public class CompanyController {
-	private final CompanyService companyService;
-	private final GeocodingService geocodingService;
+    private final CompanyService companyService;
+    private final GeocodingService geocodingService;
 
-	public CompanyController(CompanyService companyService, GeocodingService geocodingService) {
-		this.companyService = companyService;
-		this.geocodingService = geocodingService;
-	}
+    public CompanyController(CompanyService companyService, GeocodingService geocodingService) {
+        this.companyService = companyService;
+        this.geocodingService = geocodingService;
+    }
 
-	@GetMapping
-	List<CompanyResponse> list() {
-		return companyService.list(SecurityUtils.currentUser());
-	}
+    @GetMapping
+    ApiResponse<List<CompanyResponse>> list() {
+        return ApiResponse.ok("Companias obtenidas", companyService.list(SecurityUtils.currentUser()));
+    }
 
-	@PostMapping
-	CompanyResponse create(@Valid @RequestBody CompanyRequest request) {
-		return companyService.create(SecurityUtils.currentUser(), request);
-	}
+    @PostMapping
+    ApiResponse<CompanyResponse> create(@Valid @RequestBody CompanyRequest request) {
+        return ApiResponse.ok("Compania creada", companyService.create(SecurityUtils.currentUser(), request));
+    }
 
-	@GetMapping("/{id}")
-	CompanyResponse get(@PathVariable Long id) {
-		return companyService.get(SecurityUtils.currentUser(), id);
-	}
+    @GetMapping("/{id}")
+    ApiResponse<CompanyResponse> get(@PathVariable Long id) {
+        return ApiResponse.ok("Compania obtenida", companyService.get(SecurityUtils.currentUser(), id));
+    }
 
-	@PatchMapping("/{id}")
-	CompanyResponse update(@PathVariable Long id, @Valid @RequestBody CompanyRequest request) {
-		return companyService.update(SecurityUtils.currentUser(), id, request);
-	}
+    @PatchMapping("/{id}")
+    ApiResponse<CompanyResponse> update(@PathVariable Long id, @Valid @RequestBody CompanyRequest request) {
+        return ApiResponse.ok("Compania actualizada", companyService.update(SecurityUtils.currentUser(), id, request));
+    }
 
-	@PatchMapping("/{id}/location")
-	CompanyResponse updateLocation(@PathVariable Long id, @Valid @RequestBody CompanyLocationRequest request) {
-		return companyService.updateLocation(SecurityUtils.currentUser(), id, request);
-	}
+    @PatchMapping("/{id}/location")
+    ApiResponse<CompanyResponse> updateLocation(@PathVariable Long id, @Valid @RequestBody CompanyLocationRequest request) {
+        return ApiResponse.ok("Ubicacion actualizada", companyService.updateLocation(SecurityUtils.currentUser(), id, request));
+    }
 
-	@PostMapping("/{id}/location/geocode-preview")
-	GeocodePreviewResponse geocodePreview(@PathVariable Long id, @Valid @RequestBody GeocodePreviewRequest request) {
-		companyService.requireOwnedCompany(SecurityUtils.currentUser(), id);
-		return geocodingService.preview(request);
-	}
+    @PostMapping("/{id}/location/geocode-preview")
+    ApiResponse<GeocodePreviewResponse> geocodePreview(@PathVariable Long id, @Valid @RequestBody GeocodePreviewRequest request) {
+        companyService.requireOwnedCompany(SecurityUtils.currentUser(), id);
+        return ApiResponse.ok("Preview de geocoding obtenido", geocodingService.preview(request));
+    }
 }

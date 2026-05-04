@@ -4,6 +4,7 @@ import com.viandas.api.delivery.application.*;
 import com.viandas.api.delivery.dto.request.LocationUpdateRequest;
 import com.viandas.api.delivery.dto.request.StartDeliverySessionRequest;
 import com.viandas.api.delivery.dto.response.DeliverySessionResponse;
+import com.viandas.api.shared.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,17 +25,17 @@ public class DeliveryController {
 	}
 
 	@PostMapping
-	DeliverySessionResponse start(@Valid @RequestBody StartDeliverySessionRequest request) {
-		return deliveryService.start(SecurityUtils.currentUser(), request);
+	ApiResponse<DeliverySessionResponse> start(@Valid @RequestBody StartDeliverySessionRequest request) {
+		return ApiResponse.ok("Reparto iniciado", deliveryService.start(SecurityUtils.currentUser(), request));
 	}
 
 	@PatchMapping("/{id}/location")
-	DeliverySessionResponse updateLocation(@PathVariable Long id, @Valid @RequestBody LocationUpdateRequest request) {
-		return deliveryService.updateLocation(SecurityUtils.currentUser(), id, request);
+	ApiResponse<DeliverySessionResponse> updateLocation(@PathVariable Long id, @Valid @RequestBody LocationUpdateRequest request) {
+		return ApiResponse.ok("Ubicacion de reparto actualizada", deliveryService.updateLocation(SecurityUtils.currentUser(), id, request));
 	}
 
 	@PostMapping("/{id}/finish")
-	DeliverySessionResponse finish(@PathVariable Long id) {
-		return deliveryService.finish(SecurityUtils.currentUser(), id);
+	ApiResponse<DeliverySessionResponse> finish(@PathVariable Long id) {
+		return ApiResponse.ok("Reparto finalizado", deliveryService.finish(SecurityUtils.currentUser(), id));
 	}
 }

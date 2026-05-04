@@ -8,6 +8,7 @@ import com.viandas.api.menu.dto.response.MenuItemResponse;
 import com.viandas.api.menu.dto.response.MenuResponse;
 import com.viandas.api.menu.dto.response.PublicMenuResponse;
 import com.viandas.api.menu.dto.response.ShareMessageResponse;
+import com.viandas.api.shared.ApiResponse;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -34,37 +35,37 @@ public class MenuController {
 	}
 
 	@GetMapping("/menus")
-	List<MenuResponse> list(
+	ApiResponse<List<MenuResponse>> list(
 			@RequestParam(required = false) Long companyId,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-		return menuService.list(SecurityUtils.currentUser(), companyId, date);
+		return ApiResponse.ok("Menus obtenidos", menuService.list(SecurityUtils.currentUser(), companyId, date));
 	}
 
 	@PostMapping("/menus")
-	MenuResponse create(@Valid @RequestBody CreateMenuRequest request) {
-		return menuService.create(SecurityUtils.currentUser(), request);
+	ApiResponse<MenuResponse> create(@Valid @RequestBody CreateMenuRequest request) {
+		return ApiResponse.ok("Menu creado", menuService.create(SecurityUtils.currentUser(), request));
 	}
 
 	@PostMapping("/menus/{id}/items")
-	MenuItemResponse addItem(@PathVariable Long id, @Valid @RequestBody AddMenuItemRequest request) {
-		return menuService.addItem(SecurityUtils.currentUser(), id, request);
+	ApiResponse<MenuItemResponse> addItem(@PathVariable Long id, @Valid @RequestBody AddMenuItemRequest request) {
+		return ApiResponse.ok("Item agregado", menuService.addItem(SecurityUtils.currentUser(), id, request));
 	}
 
 	@PatchMapping("/menus/{id}/publish")
-	ShareMessageResponse publish(@PathVariable Long id) {
-		return menuService.publish(SecurityUtils.currentUser(), id);
+	ApiResponse<ShareMessageResponse> publish(@PathVariable Long id) {
+		return ApiResponse.ok("Menu publicado", menuService.publish(SecurityUtils.currentUser(), id));
 	}
 
 	@GetMapping("/menus/{id}/share-message")
-	ShareMessageResponse shareMessage(@PathVariable Long id) {
-		return menuService.shareMessage(SecurityUtils.currentUser(), id);
+	ApiResponse<ShareMessageResponse> shareMessage(@PathVariable Long id) {
+		return ApiResponse.ok("Mensaje para compartir obtenido", menuService.shareMessage(SecurityUtils.currentUser(), id));
 	}
 
 	@GetMapping("/public/menus/{companySlug}/{date}")
-	PublicMenuResponse publicMenu(
+	ApiResponse<PublicMenuResponse> publicMenu(
 			@PathVariable String companySlug,
 			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
 			@RequestParam("t") String token) {
-		return menuService.getPublicMenu(companySlug, date, token);
+		return ApiResponse.ok("Menu publico obtenido", menuService.getPublicMenu(companySlug, date, token));
 	}
 }
