@@ -1,5 +1,7 @@
 package com.viandas.api.menu.web;
 
+import java.util.UUID;
+
 import com.viandas.api.menu.domain.*;
 import com.viandas.api.menu.application.*;
 import com.viandas.api.menu.dto.request.AddMenuItemRequest;
@@ -36,7 +38,7 @@ public class MenuController {
 
 	@GetMapping("/menus")
 	ApiResponse<List<MenuResponse>> list(
-			@RequestParam(required = false) Long companyId,
+			@RequestParam(required = false) UUID companyId,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
 		return ApiResponse.ok("Menus obtenidos", menuService.list(SecurityUtils.currentUser(), companyId, date));
 	}
@@ -47,17 +49,17 @@ public class MenuController {
 	}
 
 	@PostMapping("/menus/{id}/items")
-	ApiResponse<MenuItemResponse> addItem(@PathVariable Long id, @Valid @RequestBody AddMenuItemRequest request) {
+	ApiResponse<MenuItemResponse> addItem(@PathVariable UUID id, @Valid @RequestBody AddMenuItemRequest request) {
 		return ApiResponse.ok("Item agregado", menuService.addItem(SecurityUtils.currentUser(), id, request));
 	}
 
 	@PatchMapping("/menus/{id}/publish")
-	ApiResponse<ShareMessageResponse> publish(@PathVariable Long id) {
+	ApiResponse<ShareMessageResponse> publish(@PathVariable UUID id) {
 		return ApiResponse.ok("Menu publicado", menuService.publish(SecurityUtils.currentUser(), id));
 	}
 
 	@GetMapping("/menus/{id}/share-message")
-	ApiResponse<ShareMessageResponse> shareMessage(@PathVariable Long id) {
+	ApiResponse<ShareMessageResponse> shareMessage(@PathVariable UUID id) {
 		return ApiResponse.ok("Mensaje para compartir obtenido", menuService.shareMessage(SecurityUtils.currentUser(), id));
 	}
 
@@ -67,5 +69,12 @@ public class MenuController {
 			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
 			@RequestParam("t") String token) {
 		return ApiResponse.ok("Menu publico obtenido", menuService.getPublicMenu(companySlug, date, token));
+	}
+
+	@GetMapping("/employee/menus/global/{date}")
+	ApiResponse<PublicMenuResponse> employeeGlobalMenu(
+			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+			@RequestParam("t") String token) {
+		return ApiResponse.ok("Menu global obtenido", menuService.getEmployeeGlobalMenu(SecurityUtils.currentUser(), date, token));
 	}
 }

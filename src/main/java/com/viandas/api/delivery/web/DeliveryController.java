@@ -1,5 +1,7 @@
 package com.viandas.api.delivery.web;
 
+import java.util.UUID;
+
 import com.viandas.api.delivery.application.*;
 import com.viandas.api.delivery.dto.request.LocationUpdateRequest;
 import com.viandas.api.delivery.dto.request.StartDeliverySessionRequest;
@@ -30,12 +32,12 @@ public class DeliveryController {
 	}
 
 	@PatchMapping("/{id}/location")
-	ApiResponse<DeliverySessionResponse> updateLocation(@PathVariable Long id, @Valid @RequestBody LocationUpdateRequest request) {
+	ApiResponse<DeliverySessionResponse> updateLocation(@PathVariable UUID id, @Valid @RequestBody LocationUpdateRequest request) {
 		return ApiResponse.ok("Ubicacion de reparto actualizada", deliveryService.updateLocation(SecurityUtils.currentUser(), id, request));
 	}
 
 	@PostMapping("/{id}/finish")
-	ApiResponse<DeliverySessionResponse> finish(@PathVariable Long id) {
+	ApiResponse<DeliverySessionResponse> finish(@PathVariable UUID id) {
 		return ApiResponse.ok("Reparto finalizado", deliveryService.finish(SecurityUtils.currentUser(), id));
 	}
 }

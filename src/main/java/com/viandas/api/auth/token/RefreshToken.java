@@ -7,6 +7,8 @@ import com.viandas.api.user.domain.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -23,6 +25,7 @@ import lombok.Setter;
 @Table(name = "refresh_tokens")
 public class RefreshToken {
 	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
 
 	@ManyToOne(fetch = FetchType.LAZY)
@@ -45,7 +48,6 @@ public class RefreshToken {
 	private String replacedByTokenHash;
 
 	public RefreshToken(User user, String tokenHash, Instant issuedAt, Instant expiresAt) {
-		this.id = UUID.randomUUID();
 		this.user = user;
 		this.tokenHash = tokenHash;
 		this.issuedAt = issuedAt;

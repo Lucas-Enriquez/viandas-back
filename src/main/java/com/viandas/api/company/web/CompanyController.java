@@ -1,5 +1,7 @@
 package com.viandas.api.company.web;
 
+import java.util.UUID;
+
 import java.util.List;
 
 import com.viandas.api.auth.security.SecurityUtils;
@@ -42,22 +44,22 @@ public class CompanyController {
     }
 
     @GetMapping("/{id}")
-    ApiResponse<CompanyResponse> get(@PathVariable Long id) {
+    ApiResponse<CompanyResponse> get(@PathVariable UUID id) {
         return ApiResponse.ok("Compania obtenida", companyService.get(SecurityUtils.currentUser(), id));
     }
 
     @PatchMapping("/{id}")
-    ApiResponse<CompanyResponse> update(@PathVariable Long id, @Valid @RequestBody CompanyRequest request) {
+    ApiResponse<CompanyResponse> update(@PathVariable UUID id, @Valid @RequestBody CompanyRequest request) {
         return ApiResponse.ok("Compania actualizada", companyService.update(SecurityUtils.currentUser(), id, request));
     }
 
     @PatchMapping("/{id}/location")
-    ApiResponse<CompanyResponse> updateLocation(@PathVariable Long id, @Valid @RequestBody CompanyLocationRequest request) {
+    ApiResponse<CompanyResponse> updateLocation(@PathVariable UUID id, @Valid @RequestBody CompanyLocationRequest request) {
         return ApiResponse.ok("Ubicacion actualizada", companyService.updateLocation(SecurityUtils.currentUser(), id, request));
     }
 
     @PostMapping("/{id}/location/geocode-preview")
-    ApiResponse<GeocodePreviewResponse> geocodePreview(@PathVariable Long id, @Valid @RequestBody GeocodePreviewRequest request) {
+    ApiResponse<GeocodePreviewResponse> geocodePreview(@PathVariable UUID id, @Valid @RequestBody GeocodePreviewRequest request) {
         companyService.requireOwnedCompany(SecurityUtils.currentUser(), id);
         return ApiResponse.ok("Preview de geocoding obtenido", geocodingService.preview(request));
     }

@@ -1,17 +1,25 @@
 package com.viandas.api.menu.domain;
 
+import java.util.UUID;
+
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import com.viandas.api.company.domain.Company;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -25,8 +33,8 @@ import lombok.Setter;
 @Table(name = "menu_items")
 public class MenuItem {
 	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "menu_id", nullable = false)
@@ -50,6 +58,13 @@ public class MenuItem {
 
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt = Instant.now();
+
+	@ManyToMany
+	@JoinTable(
+			name = "menu_item_companies",
+			joinColumns = @JoinColumn(name = "menu_item_id"),
+			inverseJoinColumns = @JoinColumn(name = "company_id"))
+	private Set<Company> availableCompanies = new LinkedHashSet<>();
 
 	public MenuItem(Menu menu, String name, BigDecimal price, MenuItemCategory category) {
 		this.menu = menu;

@@ -1,6 +1,9 @@
 package com.viandas.api.menu.dto.request;
 
+import java.util.UUID;
+
 import java.math.BigDecimal;
+import java.util.List;
 
 import com.viandas.api.menu.domain.MenuItemCategory;
 
@@ -26,5 +29,7 @@ public record AddMenuItemRequest(
 		String photoUrl,
 
 		@PositiveOrZero(message = "El stock debe ser cero o positivo")
-		Integer remainingStock) {
+		Integer remainingStock,
+
+		List<UUID> availableCompanyIds) {
 }

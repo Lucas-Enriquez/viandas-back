@@ -1,14 +1,16 @@
 package com.viandas.api.delivery.dto.response;
 
+import java.util.UUID;
+
 import java.time.Instant;
 
 import com.viandas.api.delivery.domain.DeliveryPublicSignal;
 import com.viandas.api.delivery.domain.DeliverySessionStatus;
 
 public record DeliverySessionResponse(
-		Long id,
-		Long companyId,
-		Long menuId,
+		UUID id,
+		UUID companyId,
+		UUID menuId,
 		DeliverySessionStatus status,
 		DeliveryPublicSignal publicSignal,
 		Instant startedAt,

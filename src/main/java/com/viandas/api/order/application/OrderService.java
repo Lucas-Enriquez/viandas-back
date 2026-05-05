@@ -1,6 +1,27 @@
 package com.viandas.api.order.application;
 
-import com.viandas.api.order.domain.*;
+import java.util.UUID;
+
+import com.viandas.api.auth.security.CurrentUser;
+import com.viandas.api.company.domain.Company;
+import com.viandas.api.company.persistence.CompanyRepository;
+import com.viandas.api.delivery.domain.DeliveryPublicSignal;
+import com.viandas.api.delivery.domain.DeliverySession;
+import com.viandas.api.delivery.domain.DeliverySessionStatus;
+import com.viandas.api.delivery.persistence.DeliverySessionRepository;
+import com.viandas.api.menu.application.MenuService;
+import com.viandas.api.menu.domain.Menu;
+import com.viandas.api.menu.domain.MenuItem;
+import com.viandas.api.menu.persistence.MenuItemRepository;
+import com.viandas.api.notification.application.NotificationService;
+import com.viandas.api.notification.application.OrderEventBroadcaster;
+import com.viandas.api.notification.domain.StockBroadcast;
+import com.viandas.api.notification.domain.StockBroadcastItem;
+import com.viandas.api.notification.persistence.StockBroadcastRepository;
+import com.viandas.api.order.domain.CustomerOrder;
+import com.viandas.api.order.domain.OrderItem;
+import com.viandas.api.order.domain.OrderSource;
+import com.viandas.api.order.domain.OrderStatus;
 import com.viandas.api.order.dto.request.CreateOrderRequest;
 import com.viandas.api.order.dto.request.OrderItemRequest;
 import com.viandas.api.order.dto.request.StockBroadcastRequest;
@@ -8,44 +29,25 @@ import com.viandas.api.order.dto.response.CurrentOrderResponse;
 import com.viandas.api.order.dto.response.OrderItemResponse;
 import com.viandas.api.order.dto.response.OrderResponse;
 import com.viandas.api.order.dto.response.StockBroadcastResponse;
-import com.viandas.api.order.persistence.*;
+import com.viandas.api.order.persistence.OrderRepository;
+import com.viandas.api.shared.ApiException;
+import com.viandas.api.user.domain.User;
+import com.viandas.api.user.domain.UserRole;
+import com.viandas.api.user.persistence.UserRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-
-import com.viandas.api.auth.security.CurrentUser;
-import com.viandas.api.company.persistence.CompanyRepository;
-import com.viandas.api.delivery.domain.DeliveryPublicSignal;
-import com.viandas.api.delivery.domain.DeliverySession;
-import com.viandas.api.delivery.persistence.DeliverySessionRepository;
-import com.viandas.api.delivery.domain.DeliverySessionStatus;
-import com.viandas.api.menu.domain.Menu;
-import com.viandas.api.menu.domain.MenuItem;
-import com.viandas.api.menu.persistence.MenuItemRepository;
-import com.viandas.api.menu.application.MenuService;
-import com.viandas.api.notification.application.NotificationService;
-import com.viandas.api.notification.application.OrderEventBroadcaster;
-import com.viandas.api.notification.domain.StockBroadcast;
-import com.viandas.api.notification.domain.StockBroadcastItem;
-import com.viandas.api.notification.persistence.StockBroadcastRepository;
-import com.viandas.api.shared.ApiException;
-import com.viandas.api.user.domain.User;
-import com.viandas.api.user.persistence.UserRepository;
-import com.viandas.api.user.domain.UserRole;
 
 @Service
 public class OrderService {
@@ -87,7 +89,9 @@ public class OrderService {
 		if (currentUser.role() != UserRole.CUSTOMER) {
 			throw ApiException.forbidden("Customer role required");
 		}
-		Menu menu = menuService.validatePublicAccess(companySlug, date, token).menu();
+		MenuService.PublicMenuAccess access = menuService.validatePublicAccess(companySlug, date, token);
+		Menu menu = access.menu();
+		Company company = access.company();
 		if (!canOrder(menu)) {
 			throw ApiException.conflict("Orders are closed for this menu");
 		}
@@ -96,24 +100,163 @@ public class OrderService {
 				.ifPresent(existing -> {
 					throw ApiException.conflict("Customer already has an active order for this menu");
 				});
-		if (request.items() == null || request.items().isEmpty()) {
-			throw ApiException.badRequest("Order must include at least one item");
-		}
-		Map<Long, MenuItem> menuItems = menuItemRepository.findAllById(request.items().stream().map(OrderItemRequest::menuItemId).toList()).stream()
-				.collect(Collectors.toMap(MenuItem::getId, item -> item));
+
 		CustomerOrder order = new CustomerOrder();
 		order.setMenu(menu);
-		order.setCompany(menu.getCompany());
+		order.setCompany(company);
 		order.setCustomer(customer);
 		order.setSource(OrderSource.CUSTOMER);
 		order.setStatus(OrderStatus.RECEIVED);
 		order.setCustomerNameSnapshot(customer.getName());
+		applyItems(order, menu, company, request);
+
+		CustomerOrder saved = orderRepository.save(order);
+		OrderResponse response = toResponse(saved, DeliveryPublicSignal.UNKNOWN);
+		orderEventBroadcaster.publish(company.getId(), "order.created", response);
+		return response;
+	}
+
+	@Transactional
+	public OrderResponse createEmployeeGlobalOrder(CurrentUser currentUser, LocalDate date, String token, CreateOrderRequest request) {
+		MenuService.GlobalMenuAccess access = menuService.validateEmployeeGlobalAccess(currentUser, date, token);
+		Menu menu = access.menu();
+		Company company = access.company();
+		if (!canOrder(menu)) {
+			throw ApiException.conflict("Orders are closed for this menu");
+		}
+		User employee = userRepository.findById(currentUser.userId()).orElseThrow(() -> ApiException.unauthorized("User not found"));
+		orderRepository.findFirstByMenuIdAndEmployeeIdAndStatusNotOrderByCreatedAtDesc(menu.getId(), employee.getId(), OrderStatus.CANCELLED)
+				.ifPresent(existing -> {
+					throw ApiException.conflict("Employee already has an active order for this menu");
+				});
+
+		CustomerOrder order = new CustomerOrder();
+		order.setMenu(menu);
+		order.setCompany(company);
+		order.setEmployee(employee);
+		order.setSource(OrderSource.EMPLOYEE);
+		order.setStatus(OrderStatus.RECEIVED);
+		order.setCustomerNameSnapshot(employee.getName());
+		applyItems(order, menu, company, request);
+
+		CustomerOrder saved = orderRepository.save(order);
+		OrderResponse response = toResponse(saved, DeliveryPublicSignal.UNKNOWN);
+		orderEventBroadcaster.publish(company.getId(), "order.created", response);
+		return response;
+	}
+
+	public CurrentOrderResponse currentPublicOrder(CurrentUser currentUser, String companySlug, LocalDate date, String token) {
+		if (currentUser.role() != UserRole.CUSTOMER) {
+			throw ApiException.forbidden("Customer role required");
+		}
+		Menu menu = menuService.validatePublicAccess(companySlug, date, token).menu();
+		var order = orderRepository.findFirstByMenuIdAndCustomerIdAndStatusNotOrderByCreatedAtDesc(menu.getId(), currentUser.userId(), OrderStatus.CANCELLED);
+		if (order.isEmpty()) {
+			boolean canOrder = canOrder(menu);
+			return new CurrentOrderResponse(false, canOrder, canOrder ? "Todavia podes pedir." : "Pedidos cerrados. Volve manana.", null);
+		}
+		DeliveryPublicSignal signal = deliverySignal(order.get().getMenu(), order.get().getCompany());
+		OrderResponse response = toResponse(order.get(), signal);
+		return new CurrentOrderResponse(true, false, messageFor(order.get().getStatus(), signal), response);
+	}
+
+	public CurrentOrderResponse currentEmployeeGlobalOrder(CurrentUser currentUser, LocalDate date, String token) {
+		Menu menu = menuService.validateEmployeeGlobalAccess(currentUser, date, token).menu();
+		var order = orderRepository.findFirstByMenuIdAndEmployeeIdAndStatusNotOrderByCreatedAtDesc(menu.getId(), currentUser.userId(), OrderStatus.CANCELLED);
+		if (order.isEmpty()) {
+			boolean canOrder = canOrder(menu);
+			return new CurrentOrderResponse(false, canOrder, canOrder ? "Todavia podes pedir." : "Pedidos cerrados. Volve manana.", null);
+		}
+		DeliveryPublicSignal signal = deliverySignal(order.get().getMenu(), order.get().getCompany());
+		OrderResponse response = toResponse(order.get(), signal);
+		return new CurrentOrderResponse(true, false, messageFor(order.get().getStatus(), signal), response);
+	}
+
+	public List<OrderResponse> today(CurrentUser currentUser) {
+		requireCook(currentUser);
+		LocalDate today = LocalDate.now(BUSINESS_ZONE);
+		Instant from = today.atStartOfDay(BUSINESS_ZONE).toInstant();
+		Instant to = today.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant();
+		return orderRepository.findByCompanyCookIdAndCreatedAtBetweenOrderByCreatedAtDesc(currentUser.userId(), from, to).stream()
+				.map(order -> toResponse(order, deliverySignal(order.getMenu(), order.getCompany())))
+				.toList();
+	}
+
+	public SseEmitter stream(CurrentUser currentUser, UUID companyId) {
+		requireCook(currentUser);
+		if (companyId != null) {
+			companyRepository.findByIdAndCookId(companyId, currentUser.userId())
+					.orElseThrow(() -> ApiException.notFound("Company not found"));
+			return orderEventBroadcaster.subscribe(companyId);
+		}
+		List<UUID> companyIds = companyRepository.findByCookIdOrderByName(currentUser.userId()).stream().map(company -> company.getId()).toList();
+		if (companyIds.isEmpty()) {
+			throw ApiException.notFound("Cook has no companies");
+		}
+		return orderEventBroadcaster.subscribe(companyIds);
+	}
+
+	@Transactional
+	public OrderResponse markStatus(CurrentUser currentUser, UUID orderId, OrderStatus status) {
+		requireCook(currentUser);
+		CustomerOrder order = orderRepository.findByIdAndCompanyCookId(orderId, currentUser.userId())
+				.orElseThrow(() -> ApiException.notFound("Order not found"));
+		order.setStatus(status);
+		order.setUpdatedAt(Instant.now());
+		DeliveryPublicSignal signal = deliverySignal(order.getMenu(), order.getCompany());
+		OrderResponse response = toResponse(order, signal);
+		orderEventBroadcaster.publish(order.getCompany().getId(), "order.updated", response);
+		notifyOrderOwner(order, status, signal);
+		return response;
+	}
+
+	@Transactional
+	public StockBroadcastResponse stockBroadcast(CurrentUser currentUser, StockBroadcastRequest request) {
+		requireCook(currentUser);
+		Menu menu = menuService.requireOwnedMenuForCompany(currentUser, request.menuId(), request.companyId());
+		Company company = companyRepository.findByIdAndCookId(request.companyId(), currentUser.userId())
+				.orElseThrow(() -> ApiException.notFound("Company not found"));
+		Set<UUID> itemIds = request.availableItemIds() == null ? Set.of() : Set.copyOf(request.availableItemIds());
+		Map<UUID, MenuItem> items = menuItemRepository.findAllById(itemIds).stream().collect(Collectors.toMap(MenuItem::getId, item -> item));
+		StockBroadcast broadcast = new StockBroadcast();
+		broadcast.setCompany(company);
+		broadcast.setMenu(menu);
+		broadcast.setSentBy(userRepository.findById(currentUser.userId()).orElseThrow());
+		broadcast.setMessage(request.message());
+		for (UUID itemId : itemIds) {
+			MenuItem item = items.get(itemId);
+			if (item == null || !item.getMenu().getId().equals(menu.getId())) {
+				throw ApiException.badRequest("Invalid menu item in broadcast");
+			}
+			if (!menuService.isItemAvailableForCompany(item, company)) {
+				throw ApiException.badRequest("Menu item is not available for company");
+			}
+			StockBroadcastItem broadcastItem = new StockBroadcastItem();
+			broadcastItem.setStockBroadcast(broadcast);
+			broadcastItem.setMenuItem(item);
+			broadcast.getItems().add(broadcastItem);
+		}
+		StockBroadcast saved = stockBroadcastRepository.save(broadcast);
+		StockBroadcastResponse response = new StockBroadcastResponse(saved.getId(), saved.getSentAt(), itemIds.stream().toList());
+		orderEventBroadcaster.publish(company.getId(), "stock.broadcast", response);
+		return response;
+	}
+
+	private void applyItems(CustomerOrder order, Menu menu, Company company, CreateOrderRequest request) {
+		if (request.items() == null || request.items().isEmpty()) {
+			throw ApiException.badRequest("Order must include at least one item");
+		}
+		Map<UUID, MenuItem> menuItems = menuItemRepository.findAllById(request.items().stream().map(OrderItemRequest::menuItemId).toList()).stream()
+				.collect(Collectors.toMap(MenuItem::getId, item -> item));
 		List<OrderItem> orderItems = new ArrayList<>();
 		BigDecimal total = BigDecimal.ZERO;
 		for (OrderItemRequest itemRequest : request.items()) {
 			MenuItem menuItem = menuItems.get(itemRequest.menuItemId());
 			if (menuItem == null || !menuItem.getMenu().getId().equals(menu.getId())) {
 				throw ApiException.badRequest("Invalid menu item");
+			}
+			if (!menuService.isItemAvailableForCompany(menuItem, company)) {
+				throw ApiException.badRequest("Menu item is not available for company");
 			}
 			if (itemRequest.quantity() <= 0) {
 				throw ApiException.badRequest("Quantity must be positive");
@@ -136,93 +279,6 @@ public class OrderService {
 		}
 		order.setTotalAmount(total);
 		order.getItems().addAll(orderItems);
-		CustomerOrder saved = orderRepository.save(order);
-		OrderResponse response = toResponse(saved, DeliveryPublicSignal.UNKNOWN);
-		orderEventBroadcaster.publish(menu.getCompany().getId(), "order.created", response);
-		return response;
-	}
-
-	public CurrentOrderResponse currentPublicOrder(CurrentUser currentUser, String companySlug, LocalDate date, String token) {
-		if (currentUser.role() != UserRole.CUSTOMER) {
-			throw ApiException.forbidden("Customer role required");
-		}
-		Menu menu = menuService.validatePublicAccess(companySlug, date, token).menu();
-		var order = orderRepository.findFirstByMenuIdAndCustomerIdAndStatusNotOrderByCreatedAtDesc(menu.getId(), currentUser.userId(), OrderStatus.CANCELLED);
-		if (order.isEmpty()) {
-			boolean canOrder = canOrder(menu);
-			return new CurrentOrderResponse(false, canOrder, canOrder ? "Todavia podes pedir." : "Pedidos cerrados. Volve mañana.", null);
-		}
-		DeliveryPublicSignal signal = deliverySignal(menu);
-		OrderResponse response = toResponse(order.get(), signal);
-		return new CurrentOrderResponse(true, false, messageFor(order.get().getStatus(), signal), response);
-	}
-
-	public List<OrderResponse> today(CurrentUser currentUser) {
-		requireCook(currentUser);
-		LocalDate today = LocalDate.now(BUSINESS_ZONE);
-		Instant from = today.atStartOfDay(BUSINESS_ZONE).toInstant();
-		Instant to = today.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant();
-		return orderRepository.findByCompanyCookIdAndCreatedAtBetweenOrderByCreatedAtDesc(currentUser.userId(), from, to).stream()
-				.map(order -> toResponse(order, deliverySignal(order.getMenu())))
-				.toList();
-	}
-
-	public SseEmitter stream(CurrentUser currentUser, Long companyId) {
-		requireCook(currentUser);
-		if (companyId != null) {
-			companyRepository.findByIdAndCookId(companyId, currentUser.userId())
-					.orElseThrow(() -> ApiException.notFound("Company not found"));
-			return orderEventBroadcaster.subscribe(companyId);
-		}
-		List<Long> companyIds = companyRepository.findByCookIdOrderByName(currentUser.userId()).stream().map(company -> company.getId()).toList();
-		if (companyIds.isEmpty()) {
-			throw ApiException.notFound("Cook has no companies");
-		}
-		return orderEventBroadcaster.subscribe(companyIds);
-	}
-
-	@Transactional
-	public OrderResponse markStatus(CurrentUser currentUser, Long orderId, OrderStatus status) {
-		requireCook(currentUser);
-		CustomerOrder order = orderRepository.findByIdAndCompanyCookId(orderId, currentUser.userId())
-				.orElseThrow(() -> ApiException.notFound("Order not found"));
-		order.setStatus(status);
-		order.setUpdatedAt(Instant.now());
-		OrderResponse response = toResponse(order, deliverySignal(order.getMenu()));
-		orderEventBroadcaster.publish(order.getCompany().getId(), "order.updated", response);
-		if (order.getCustomer() != null) {
-			notificationService.notifyUser(order.getCustomer().getId(), "Pedido actualizado", messageFor(status, deliverySignal(order.getMenu())), Map.of("orderId", order.getId().toString()));
-		}
-		return response;
-	}
-
-	@Transactional
-	public StockBroadcastResponse stockBroadcast(CurrentUser currentUser, StockBroadcastRequest request) {
-		requireCook(currentUser);
-		Menu menu = menuService.requireOwnedMenu(currentUser, request.menuId());
-		if (!menu.getCompany().getId().equals(request.companyId())) {
-			throw ApiException.badRequest("Menu does not belong to company");
-		}
-		Set<Long> itemIds = request.availableItemIds() == null ? Set.of() : Set.copyOf(request.availableItemIds());
-		Map<Long, MenuItem> items = menuItemRepository.findAllById(itemIds).stream().collect(Collectors.toMap(MenuItem::getId, item -> item));
-		StockBroadcast broadcast = new StockBroadcast();
-		broadcast.setCompany(menu.getCompany());
-		broadcast.setMenu(menu);
-		broadcast.setSentBy(userRepository.findById(currentUser.userId()).orElseThrow());
-		broadcast.setMessage(request.message());
-		for (Long itemId : itemIds) {
-			MenuItem item = items.get(itemId);
-			if (item == null || !item.getMenu().getId().equals(menu.getId())) {
-				throw ApiException.badRequest("Invalid menu item in broadcast");
-			}
-			StockBroadcastItem broadcastItem = new StockBroadcastItem();
-			broadcastItem.setStockBroadcast(broadcast);
-			broadcastItem.setMenuItem(item);
-			broadcast.getItems().add(broadcastItem);
-		}
-		StockBroadcast saved = stockBroadcastRepository.save(broadcast);
-		orderEventBroadcaster.publish(menu.getCompany().getId(), "stock.broadcast", new StockBroadcastResponse(saved.getId(), saved.getSentAt(), itemIds.stream().toList()));
-		return new StockBroadcastResponse(saved.getId(), saved.getSentAt(), itemIds.stream().toList());
 	}
 
 	private boolean canOrder(Menu menu) {
@@ -236,10 +292,10 @@ public class OrderService {
 		return LocalTime.now(BUSINESS_ZONE).isBefore(menu.getOrderClosesAt());
 	}
 
-	private DeliveryPublicSignal deliverySignal(Menu menu) {
+	private DeliveryPublicSignal deliverySignal(Menu menu, Company company) {
 		return deliverySessionRepository.findFirstByMenuIdAndCompanyIdAndStatusOrderByStartedAtDesc(
 						menu.getId(),
-						menu.getCompany().getId(),
+						company.getId(),
 						DeliverySessionStatus.ACTIVE)
 				.map(this::signalFromSession)
 				.orElse(DeliveryPublicSignal.UNKNOWN);
@@ -266,6 +322,18 @@ public class OrderService {
 			case CANCELLED -> "Tu pedido fue cancelado.";
 			case NEARBY -> "Esta cerca.";
 		};
+	}
+
+	private void notifyOrderOwner(CustomerOrder order, OrderStatus status, DeliveryPublicSignal signal) {
+		UUID userId = null;
+		if (order.getCustomer() != null) {
+			userId = order.getCustomer().getId();
+		} else if (order.getEmployee() != null) {
+			userId = order.getEmployee().getId();
+		}
+		if (userId != null) {
+			notificationService.notifyUser(userId, "Pedido actualizado", messageFor(status, signal), Map.of("orderId", order.getId().toString()));
+		}
 	}
 
 	private OrderResponse toResponse(CustomerOrder order, DeliveryPublicSignal deliverySignal) {
@@ -301,5 +369,4 @@ public class OrderService {
 			throw ApiException.forbidden("Cook role required");
 		}
 	}
-
 }

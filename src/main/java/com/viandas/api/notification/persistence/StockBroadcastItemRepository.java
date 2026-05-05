@@ -1,7 +1,9 @@
 package com.viandas.api.notification.persistence;
 
+import java.util.UUID;
+
 import com.viandas.api.notification.domain.*;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface StockBroadcastItemRepository extends JpaRepository<StockBroadcastItem, Long> {
+public interface StockBroadcastItemRepository extends JpaRepository<StockBroadcastItem, UUID> {
 }

@@ -1,5 +1,6 @@
 package com.viandas.api.invitation.web;
 
+import com.viandas.api.auth.dto.response.AuthResponse;
 import com.viandas.api.invitation.application.*;
 import com.viandas.api.invitation.dto.request.AcceptGlobalInvitationRequest;
 import com.viandas.api.invitation.dto.request.AcceptInvitationRequest;
@@ -32,12 +33,17 @@ public class InvitationController {
     }
 
     @PostMapping("/companies/{id}/global-invitation")
-    ApiResponse<GlobalInvitationResponse> create(@PathVariable Long id, @Valid @RequestBody CreateGlobalInvitationRequest request) {
+    ApiResponse<GlobalInvitationResponse> create(@PathVariable UUID id, @Valid @RequestBody CreateGlobalInvitationRequest request) {
         return ApiResponse.ok("Invitacion global creada", globalInvitationService.create(SecurityUtils.currentUser(), id, request));
     }
 
+    @GetMapping("/global-invitation/{token}")
+    ApiResponse<GlobalInvitationPreviewResponse> preview(@PathVariable String token) {
+        return ApiResponse.ok("Invitacion global obtenida", globalInvitationService.preview(token));
+    }
+
     @PostMapping("/global-invitation/{token}/accept")
-    ApiResponse<AcceptGlobalInvitationResponse> accept(
+    ApiResponse<AuthResponse> accept(
             @PathVariable String token,
             @Valid @RequestBody AcceptGlobalInvitationRequest request
     ) {
@@ -45,7 +51,7 @@ public class InvitationController {
     }
 
     @PostMapping("/companies/{id}/invitations")
-    ApiResponse<InvitationResponse> create(@PathVariable Long id, @Valid @RequestBody CreateInvitationRequest request) {
+    ApiResponse<InvitationResponse> create(@PathVariable UUID id, @Valid @RequestBody CreateInvitationRequest request) {
         return ApiResponse.ok("Invitacion creada", invitationService.create(SecurityUtils.currentUser(), id, request));
     }
 
@@ -55,7 +61,7 @@ public class InvitationController {
     }
 
     @PostMapping("/invitations/{token}/accept")
-    ApiResponse<AcceptInvitationResponse> accept(@PathVariable UUID token, @Valid @RequestBody AcceptInvitationRequest request) {
+    ApiResponse<AuthResponse> accept(@PathVariable UUID token, @Valid @RequestBody AcceptInvitationRequest request) {
         return ApiResponse.ok("Invitacion aceptada", invitationService.accept(token, request));
     }
 }

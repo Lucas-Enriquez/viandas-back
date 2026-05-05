@@ -1,5 +1,7 @@
 package com.viandas.api.order.web;
 
+import java.util.UUID;
+
 import com.viandas.api.order.domain.*;
 import com.viandas.api.order.application.*;
 import com.viandas.api.order.dto.request.CreateOrderRequest;
@@ -51,33 +53,48 @@ public class OrderController {
 		return ApiResponse.ok("Pedido actual obtenido", orderService.currentPublicOrder(SecurityUtils.currentUser(), companySlug, date, token));
 	}
 
+	@PostMapping("/employee/menus/global/{date}/orders")
+	ApiResponse<OrderResponse> createEmployeeGlobalOrder(
+			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+			@RequestParam("t") String token,
+			@Valid @RequestBody CreateOrderRequest request) {
+		return ApiResponse.ok("Pedido creado", orderService.createEmployeeGlobalOrder(SecurityUtils.currentUser(), date, token, request));
+	}
+
+	@GetMapping("/employee/menus/global/{date}/orders/current")
+	ApiResponse<CurrentOrderResponse> currentEmployeeGlobalOrder(
+			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+			@RequestParam("t") String token) {
+		return ApiResponse.ok("Pedido actual obtenido", orderService.currentEmployeeGlobalOrder(SecurityUtils.currentUser(), date, token));
+	}
+
 	@GetMapping("/orders/today")
 	ApiResponse<List<OrderResponse>> today() {
 		return ApiResponse.ok("Pedidos de hoy obtenidos", orderService.today(SecurityUtils.currentUser()));
 	}
 
 	@GetMapping("/orders/stream")
-	SseEmitter stream(@RequestParam(required = false) Long companyId) {
+	SseEmitter stream(@RequestParam(required = false) UUID companyId) {
 		return orderService.stream(SecurityUtils.currentUser(), companyId);
 	}
 
 	@PatchMapping("/orders/{id}/preparing")
-	ApiResponse<OrderResponse> preparing(@PathVariable Long id) {
+	ApiResponse<OrderResponse> preparing(@PathVariable UUID id) {
 		return ApiResponse.ok("Pedido marcado como en preparacion", orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.PREPARING));
 	}
 
 	@PatchMapping("/orders/{id}/out-for-delivery")
-	ApiResponse<OrderResponse> outForDelivery(@PathVariable Long id) {
+	ApiResponse<OrderResponse> outForDelivery(@PathVariable UUID id) {
 		return ApiResponse.ok("Pedido marcado como en reparto", orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.OUT_FOR_DELIVERY));
 	}
 
 	@PatchMapping("/orders/{id}/delivered")
-	ApiResponse<OrderResponse> delivered(@PathVariable Long id) {
+	ApiResponse<OrderResponse> delivered(@PathVariable UUID id) {
 		return ApiResponse.ok("Pedido marcado como entregado", orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.DELIVERED));
 	}
 
 	@PatchMapping("/orders/{id}/cancel")
-	ApiResponse<OrderResponse> cancel(@PathVariable Long id) {
+	ApiResponse<OrderResponse> cancel(@PathVariable UUID id) {
 		return ApiResponse.ok("Pedido cancelado", orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.CANCELLED));
 	}
 

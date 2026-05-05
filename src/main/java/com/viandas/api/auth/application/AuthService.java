@@ -170,6 +170,10 @@ public class AuthService {
         });
     }
 
+    public AuthResponse createSession(User user) {
+        return authResponse(user);
+    }
+
     private AuthResponse authResponse(User user) {
         String refreshToken = tokenHasher.newToken();
         String refreshTokenHash = tokenHasher.hash(refreshToken);

@@ -18,7 +18,8 @@ import java.util.UUID;
 public class GlobalInvitation {
 
     @Id
-    private UUID id = UUID.randomUUID();
+    @GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)

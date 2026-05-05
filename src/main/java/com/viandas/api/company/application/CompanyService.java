@@ -1,5 +1,7 @@
 package com.viandas.api.company.application;
 
+import java.util.UUID;
+
 import com.viandas.api.company.domain.*;
 import com.viandas.api.company.dto.request.CompanyLocationRequest;
 import com.viandas.api.company.dto.request.CompanyRequest;
@@ -40,7 +42,7 @@ public class CompanyService {
 		return companyRepository.findByCookIdOrderByName(currentUser.userId()).stream().map(this::toResponse).toList();
 	}
 
-	public CompanyResponse get(CurrentUser currentUser, Long id) {
+	public CompanyResponse get(CurrentUser currentUser, UUID id) {
 		return toResponse(requireOwnedCompany(currentUser, id));
 	}
 
@@ -56,7 +58,7 @@ public class CompanyService {
 	}
 
 	@Transactional
-	public CompanyResponse update(CurrentUser currentUser, Long id, CompanyRequest request) {
+	public CompanyResponse update(CurrentUser currentUser, UUID id, CompanyRequest request) {
 		Company company = requireOwnedCompany(currentUser, id);
 		company.setName(request.name().trim());
 		apply(company, request);
@@ -66,7 +68,7 @@ public class CompanyService {
 	}
 
 	@Transactional
-	public CompanyResponse updateLocation(CurrentUser currentUser, Long id, CompanyLocationRequest request) {
+	public CompanyResponse updateLocation(CurrentUser currentUser, UUID id, CompanyLocationRequest request) {
 		Company company = requireOwnedCompany(currentUser, id);
 		company.setAddress(request.address());
 		company.setLatitude(request.latitude());
@@ -77,7 +79,7 @@ public class CompanyService {
 		return toResponse(company);
 	}
 
-	public Company requireOwnedCompany(CurrentUser currentUser, Long id) {
+	public Company requireOwnedCompany(CurrentUser currentUser, UUID id) {
 		requireCook(currentUser);
 		return companyRepository.findByIdAndCookId(id, currentUser.userId())
 				.orElseThrow(() -> ApiException.notFound("Company not found"));

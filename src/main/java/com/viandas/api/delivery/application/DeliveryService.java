@@ -1,5 +1,7 @@
 package com.viandas.api.delivery.application;
 
+import java.util.UUID;
+
 import com.viandas.api.delivery.domain.*;
 import com.viandas.api.delivery.dto.request.LocationUpdateRequest;
 import com.viandas.api.delivery.dto.request.StartDeliverySessionRequest;
@@ -16,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.viandas.api.auth.security.CurrentUser;
+import com.viandas.api.company.domain.Company;
+import com.viandas.api.company.persistence.CompanyRepository;
 import com.viandas.api.menu.domain.Menu;
 import com.viandas.api.menu.application.MenuService;
 import com.viandas.api.notification.application.NotificationService;
@@ -32,6 +36,7 @@ public class DeliveryService {
 	private final DeliverySessionRepository deliverySessionRepository;
 	private final DeliveryLocationUpdateRepository deliveryLocationUpdateRepository;
 	private final MenuService menuService;
+	private final CompanyRepository companyRepository;
 	private final OrderRepository orderRepository;
 	private final UserRepository userRepository;
 	private final NotificationService notificationService;
@@ -43,6 +48,7 @@ public class DeliveryService {
 			DeliverySessionRepository deliverySessionRepository,
 			DeliveryLocationUpdateRepository deliveryLocationUpdateRepository,
 			MenuService menuService,
+			CompanyRepository companyRepository,
 			OrderRepository orderRepository,
 			UserRepository userRepository,
 			NotificationService notificationService,
@@ -52,6 +58,7 @@ public class DeliveryService {
 		this.deliverySessionRepository = deliverySessionRepository;
 		this.deliveryLocationUpdateRepository = deliveryLocationUpdateRepository;
 		this.menuService = menuService;
+		this.companyRepository = companyRepository;
 		this.orderRepository = orderRepository;
 		this.userRepository = userRepository;
 		this.notificationService = notificationService;
@@ -62,27 +69,26 @@ public class DeliveryService {
 
 	@Transactional
 	public DeliverySessionResponse start(CurrentUser currentUser, StartDeliverySessionRequest request) {
-		Menu menu = menuService.requireOwnedMenu(currentUser, request.menuId());
-		if (!menu.getCompany().getId().equals(request.companyId())) {
-			throw ApiException.badRequest("Menu does not belong to company");
-		}
+		Menu menu = menuService.requireOwnedMenuForCompany(currentUser, request.menuId(), request.companyId());
+		Company company = companyRepository.findByIdAndCookId(request.companyId(), currentUser.userId())
+				.orElseThrow(() -> ApiException.notFound("Company not found"));
 		User cook = userRepository.findById(currentUser.userId()).orElseThrow(() -> ApiException.unauthorized("User not found"));
 		Instant now = Instant.now();
 		DeliverySession session = new DeliverySession();
-		session.setCompany(menu.getCompany());
+		session.setCompany(company);
 		session.setMenu(menu);
 		session.setCook(cook);
 		session.setStatus(DeliverySessionStatus.ACTIVE);
 		session.setStartedAt(now);
 		session.setExpiresAt(now.plusSeconds(sessionTtlMinutes * 60));
 		DeliverySession saved = deliverySessionRepository.save(session);
-		updateOpenOrders(menu, OrderStatus.OUT_FOR_DELIVERY);
-		orderEventBroadcaster.publish(menu.getCompany().getId(), "delivery.started", toResponse(saved, DeliveryPublicSignal.OUT_FOR_DELIVERY));
+		updateOpenOrders(menu, company, OrderStatus.OUT_FOR_DELIVERY);
+		orderEventBroadcaster.publish(company.getId(), "delivery.started", toResponse(saved, DeliveryPublicSignal.OUT_FOR_DELIVERY));
 		return toResponse(saved, DeliveryPublicSignal.OUT_FOR_DELIVERY);
 	}
 
 	@Transactional
-	public DeliverySessionResponse updateLocation(CurrentUser currentUser, Long sessionId, LocationUpdateRequest request) {
+	public DeliverySessionResponse updateLocation(CurrentUser currentUser, UUID sessionId, LocationUpdateRequest request) {
 		DeliverySession session = requireOwnedActiveSession(currentUser, sessionId);
 		BigDecimal approxLat = roundCoordinate(request.latitude());
 		BigDecimal approxLon = roundCoordinate(request.longitude());
@@ -100,7 +106,7 @@ public class DeliveryService {
 		deliveryLocationUpdateRepository.save(update);
 
 		if (signal == DeliveryPublicSignal.NEARBY) {
-			updateOpenOrders(session.getMenu(), OrderStatus.NEARBY);
+			updateOpenOrders(session.getMenu(), session.getCompany(), OrderStatus.NEARBY);
 		}
 		DeliverySessionResponse response = toResponse(session, signal);
 		orderEventBroadcaster.publish(session.getCompany().getId(), "delivery.location", response);
@@ -108,7 +114,7 @@ public class DeliveryService {
 	}
 
 	@Transactional
-	public DeliverySessionResponse finish(CurrentUser currentUser, Long sessionId) {
+	public DeliverySessionResponse finish(CurrentUser currentUser, UUID sessionId) {
 		DeliverySession session = deliverySessionRepository.findByIdAndCompanyCookId(sessionId, currentUser.userId())
 				.orElseThrow(() -> ApiException.notFound("Delivery session not found"));
 		session.setStatus(DeliverySessionStatus.FINISHED);
@@ -118,7 +124,7 @@ public class DeliveryService {
 		return response;
 	}
 
-	private DeliverySession requireOwnedActiveSession(CurrentUser currentUser, Long sessionId) {
+	private DeliverySession requireOwnedActiveSession(CurrentUser currentUser, UUID sessionId) {
 		DeliverySession session = deliverySessionRepository.findByIdAndCompanyCookId(sessionId, currentUser.userId())
 				.orElseThrow(() -> ApiException.notFound("Delivery session not found"));
 		if (session.getStatus() != DeliverySessionStatus.ACTIVE) {
@@ -143,15 +149,16 @@ public class DeliveryService {
 		return meters <= nearbyThresholdMeters ? DeliveryPublicSignal.NEARBY : DeliveryPublicSignal.OUT_FOR_DELIVERY;
 	}
 
-	private void updateOpenOrders(Menu menu, OrderStatus status) {
+	private void updateOpenOrders(Menu menu, Company company, OrderStatus status) {
 		List<OrderStatus> openStatuses = List.of(OrderStatus.RECEIVED, OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY);
-		List<CustomerOrder> orders = orderRepository.findByMenuIdAndCompanyIdAndStatusIn(menu.getId(), menu.getCompany().getId(), openStatuses);
+		List<CustomerOrder> orders = orderRepository.findByMenuIdAndCompanyIdAndStatusIn(menu.getId(), company.getId(), openStatuses);
 		for (CustomerOrder order : orders) {
 			order.setStatus(status);
 			order.setUpdatedAt(Instant.now());
-			if (order.getCustomer() != null) {
+			User orderOwner = order.getCustomer() != null ? order.getCustomer() : order.getEmployee();
+			if (orderOwner != null) {
 				notificationService.notifyUser(
-						order.getCustomer().getId(),
+						orderOwner.getId(),
 						"Pedido actualizado",
 						status == OrderStatus.NEARBY ? "Esta cerca." : "Tu pedido ya salio.",
 						Map.of("orderId", order.getId().toString()));

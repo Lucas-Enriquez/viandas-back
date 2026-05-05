@@ -1,5 +1,7 @@
 package com.viandas.api.notification.application;
 
+import java.util.UUID;
+
 import com.viandas.api.notification.domain.*;
 import com.viandas.api.notification.dto.request.RegisterDeviceRequest;
 import com.viandas.api.notification.dto.response.DeviceResponse;
@@ -26,7 +28,7 @@ public class NotificationService {
 		this.userRepository = userRepository;
 	}
 
-	public DeviceResponse registerDevice(Long userId, RegisterDeviceRequest request) {
+	public DeviceResponse registerDevice(UUID userId, RegisterDeviceRequest request) {
 		User user = userRepository.findById(userId).orElseThrow();
 		NotificationDevice device = notificationDeviceRepository.findByToken(request.token()).orElseGet(NotificationDevice::new);
 		device.setUser(user);
@@ -37,7 +39,7 @@ public class NotificationService {
 		return new DeviceResponse(saved.getId(), saved.getPlatform(), saved.getLastSeenAt());
 	}
 
-	public void notifyUser(Long userId, String title, String body, Map<String, String> data) {
+	public void notifyUser(UUID userId, String title, String body, Map<String, String> data) {
 		var devices = notificationDeviceRepository.findByUserId(userId);
 		if (devices.isEmpty()) {
 			return;

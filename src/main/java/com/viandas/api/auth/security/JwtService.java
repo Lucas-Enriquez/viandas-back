@@ -1,5 +1,7 @@
 package com.viandas.api.auth.security;
 
+import java.util.UUID;
+
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
@@ -33,13 +35,13 @@ public class JwtService {
 		this.expirationMinutes = expirationMinutes;
 	}
 
-	public String createToken(Long userId, String email, UserRole role) {
+	public String createToken(UUID userId, String email, UserRole role) {
 		Instant now = Instant.now(clock);
 		Instant expiresAt = now.plusSeconds(expirationMinutes * 60);
 
 		var builder = Jwts.builder()
 				.subject(email)
-				.claim("userId", userId)
+				.claim("userId", userId.toString())
 				.claim("role", role.name())
 				.issuedAt(Date.from(now))
 				.expiration(Date.from(expiresAt))
@@ -57,7 +59,7 @@ public class JwtService {
 					.parseSignedClaims(token)
 					.getPayload();
 
-			Long userId = claims.get("userId", Long.class);
+			UUID userId = UUID.fromString(claims.get("userId", String.class));
 			UserRole role = UserRole.valueOf(claims.get("role", String.class));
 
 			return new CurrentUser(userId, role);

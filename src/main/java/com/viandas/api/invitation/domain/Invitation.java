@@ -7,6 +7,8 @@ import com.viandas.api.company.domain.Company;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -23,7 +25,8 @@ import lombok.Setter;
 @Table(name = "invitations")
 public class Invitation {
 	@Id
-	private UUID id = UUID.randomUUID();
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
 
 	@Column(nullable = false, unique = true)
 	private UUID token = UUID.randomUUID();
