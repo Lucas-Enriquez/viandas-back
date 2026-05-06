@@ -16,14 +16,7 @@ import java.util.List;
 
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.viandas.api.auth.security.SecurityUtils;
 
@@ -47,6 +40,13 @@ public class MenuController {
 	ApiResponse<MenuResponse> create(@Valid @RequestBody CreateMenuRequest request) {
 		return ApiResponse.ok("Menu creado", menuService.create(SecurityUtils.currentUser(), request));
 	}
+
+	@DeleteMapping("/menus/{id}")
+	ApiResponse<Void> delete(@PathVariable UUID id) {
+		menuService.delete(SecurityUtils.currentUser(), id);
+		return ApiResponse.ok("Menu eliminado", null);
+	}
+
 
 	@PostMapping("/menus/{id}/items")
 	ApiResponse<MenuItemResponse> addItem(@PathVariable UUID id, @Valid @RequestBody AddMenuItemRequest request) {
@@ -77,4 +77,5 @@ public class MenuController {
 			@RequestParam("t") String token) {
 		return ApiResponse.ok("Menu global obtenido", menuService.getEmployeeGlobalMenu(SecurityUtils.currentUser(), date, token));
 	}
+
 }
