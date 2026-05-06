@@ -139,6 +139,7 @@ public class MenuService {
         return toMenuResponse(saved, List.of());
     }
 
+    @Transactional
     public void delete(CurrentUser currentUser, UUID id) {
 
         Menu menu = requireOwnedMenu(currentUser, id);
@@ -147,11 +148,11 @@ public class MenuService {
             throw ApiException.conflict("No se puede eliminar un menú publicado");
         }
 
-        if (orderRepository.existsByMenuId(menu.getId()) != null) {
+        if (orderRepository.existsByMenuId(menu.getId())) {
             throw ApiException.conflict("No se puede eliminar un menú con pedidos");
         }
 
-        menuRepository.deleteById(menu.getId());
+        menuRepository.delete(menu);
     }
 
     @Transactional(readOnly = true)

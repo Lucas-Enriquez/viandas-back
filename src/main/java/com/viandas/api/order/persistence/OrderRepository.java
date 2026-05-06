@@ -24,5 +24,5 @@ public interface OrderRepository extends JpaRepository<CustomerOrder, UUID> {
 
 	List<CustomerOrder> findByMenuIdAndCompanyIdAndStatusIn(UUID menuId, UUID companyId, List<OrderStatus> statuses);
 
-	CustomerOrder existsByMenuId(UUID id);
+	boolean existsByMenuId(UUID id);
 }
