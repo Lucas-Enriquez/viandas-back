@@ -57,6 +57,16 @@ public class CompanyService {
 		return toResponse(saved);
 	}
 
+	private String uniqueSlug(String name) {
+		String base = slugGenerator.slugify(name);
+		String slug = base;
+		int suffix = 2;
+		while (companyRepository.existsBySlug(slug)) {
+			slug = base + "-" + suffix++;
+		}
+		return slug;
+	}
+
 	@Transactional
 	public CompanyResponse update(CurrentUser currentUser, UUID id, CompanyRequest request) {
 		Company company = requireOwnedCompany(currentUser, id);
@@ -92,16 +102,6 @@ public class CompanyService {
 		company.setLongitude(request.longitude());
 		company.setLocationSource(request.locationSource());
 		company.setWhatsappGroupLabel(request.whatsappGroupLabel());
-	}
-
-	private String uniqueSlug(String name) {
-		String base = slugGenerator.slugify(name);
-		String slug = base;
-		int suffix = 2;
-		while (companyRepository.existsBySlug(slug)) {
-			slug = base + "-" + suffix++;
-		}
-		return slug;
 	}
 
 	private static void requireCook(CurrentUser currentUser) {

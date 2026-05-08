@@ -31,6 +31,7 @@ public class SecurityConfig {
 	SecurityFilterChain securityFilterChain(
 			HttpSecurity http,
 			JwtAuthenticationFilter jwtAuthenticationFilter,
+			AuthRateLimitFilter authRateLimitFilter,
 			ObjectMapper objectMapper
 	) throws Exception {
 		return http
@@ -42,11 +43,12 @@ public class SecurityConfig {
 						.accessDeniedHandler((request, response, exception) ->
 								writeError(objectMapper, request, response, HttpStatus.FORBIDDEN, "Access denied")))
 				.authorizeHttpRequests(auth -> auth
-						.requestMatchers("/auth/**", "/internal/bootstrap/cook", "/invitations/**").permitAll()
+						.requestMatchers("/auth/**", "/internal/bootstrap/**", "/invitations/**").permitAll()
 						.requestMatchers(HttpMethod.GET, "/public/menus/*/*").permitAll()
 						.requestMatchers(HttpMethod.GET, "/global-invitation/*").permitAll()
 						.requestMatchers(HttpMethod.POST, "/global-invitation/*/accept").permitAll()
 						.anyRequest().authenticated())
+				.addFilterBefore(authRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 				.build();
 	}

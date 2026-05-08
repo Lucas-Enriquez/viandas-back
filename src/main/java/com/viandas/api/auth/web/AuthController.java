@@ -1,7 +1,6 @@
 package com.viandas.api.auth.web;
 
 import com.viandas.api.auth.application.AuthService;
-import com.viandas.api.auth.dto.request.BootstrapCookRequest;
 import com.viandas.api.auth.dto.request.GoogleLoginRequest;
 import com.viandas.api.auth.dto.request.LoginRequest;
 import com.viandas.api.auth.dto.request.RefreshTokenRequest;
@@ -42,10 +41,5 @@ public class AuthController {
     ApiResponse<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
         authService.logout(request);
         return ApiResponse.ok("Sesion cerrada", null);
-    }
-
-    @PostMapping("/internal/bootstrap/cook")
-    ApiResponse<AuthResponse> bootstrapCook(@Valid @RequestBody BootstrapCookRequest request) {
-        return ApiResponse.ok("Cook creado", authService.bootstrapCook(request));
     }
 }

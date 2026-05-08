@@ -28,8 +28,8 @@ public class Invitation {
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
 
-	@Column(nullable = false, unique = true)
-	private UUID token = UUID.randomUUID();
+	@Column(name = "token_hash", nullable = false, unique = true, length = 64)
+	private String tokenHash;
 
 	private String email;
 

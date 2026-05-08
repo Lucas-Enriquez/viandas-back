@@ -20,7 +20,9 @@ import com.viandas.api.company.domain.CompanyMembership;
 import com.viandas.api.company.persistence.CompanyMembershipRepository;
 import com.viandas.api.auth.application.AuthService;
 import com.viandas.api.auth.dto.response.AuthResponse;
+import com.viandas.api.auth.security.CurrentUser;
 import com.viandas.api.shared.ApiException;
+import com.viandas.api.shared.TokenHasher;
 import com.viandas.api.user.domain.User;
 import com.viandas.api.user.persistence.UserRepository;
 import com.viandas.api.user.domain.UserRole;
@@ -28,11 +30,12 @@ import com.viandas.api.user.domain.UserRole;
 @Service
 public class InvitationService {
 	private final InvitationRepository invitationRepository;
-	private final com.viandas.api.company.application.CompanyService companyService;
+	private final CompanyService companyService;
 	private final UserRepository userRepository;
 	private final CompanyMembershipRepository companyMembershipRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final AuthService authService;
+	private final TokenHasher tokenHasher;
 	private final String publicBaseUrl;
 
 	public InvitationService(
@@ -42,6 +45,7 @@ public class InvitationService {
 			CompanyMembershipRepository companyMembershipRepository,
 			PasswordEncoder passwordEncoder,
 			AuthService authService,
+			TokenHasher tokenHasher,
 			@Value("${viandas.public-base-url}") String publicBaseUrl) {
 		this.invitationRepository = invitationRepository;
 		this.companyService = companyService;
@@ -49,24 +53,28 @@ public class InvitationService {
 		this.companyMembershipRepository = companyMembershipRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.authService = authService;
+		this.tokenHasher = tokenHasher;
 		this.publicBaseUrl = publicBaseUrl;
 	}
 
 	@Transactional
-	public InvitationResponse create(com.viandas.api.auth.security.CurrentUser currentUser, UUID companyId, CreateInvitationRequest request) {
+	public InvitationResponse create(CurrentUser currentUser, UUID companyId, CreateInvitationRequest request) {
 		Company company = companyService.requireOwnedCompany(currentUser, companyId);
-		Invitation invitation = invitationRepository.save(new Invitation(company, normalizeEmail(request.email()), Instant.now().plusSeconds(72 * 60 * 60)));
-		return toResponse(invitation);
+		String token = tokenHasher.newToken();
+		Invitation invitation = new Invitation(company, normalizeEmail(request.email()), Instant.now().plusSeconds(72 * 60 * 60));
+		invitation.setTokenHash(tokenHasher.hash(token));
+		invitationRepository.save(invitation);
+		return toResponse(invitation, token);
 	}
 
 	@Transactional(readOnly = true)
-	public InvitationValidationResponse validate(UUID token) {
+	public InvitationValidationResponse validate(String token) {
 		Invitation invitation = validInvitation(token);
 		return new InvitationValidationResponse(invitation.getCompany().getName(), invitation.getEmail(), invitation.getExpiresAt());
 	}
 
 	@Transactional
-	public AuthResponse accept(UUID token, AcceptInvitationRequest request) {
+	public AuthResponse accept(String token, AcceptInvitationRequest request) {
 		Invitation invitation = validInvitation(token);
 		String requestEmail = normalizeEmail(request.email());
 		String email = invitation.getEmail() != null && !invitation.getEmail().isBlank()
@@ -84,8 +92,8 @@ public class InvitationService {
 		return authService.createSession(employee);
 	}
 
-	private Invitation validInvitation(UUID token) {
-		Invitation invitation = invitationRepository.findByToken(token)
+	private Invitation validInvitation(String token) {
+		Invitation invitation = invitationRepository.findByTokenHash(tokenHasher.hash(token))
 				.orElseThrow(() -> ApiException.notFound("Invitation not found"));
 		if (invitation.isUsed()) {
 			throw ApiException.conflict("Invitation already used");
@@ -96,9 +104,9 @@ public class InvitationService {
 		return invitation;
 	}
 
-	private InvitationResponse toResponse(Invitation invitation) {
-		String link = publicBaseUrl + "/invite/" + invitation.getToken();
-		return new InvitationResponse(invitation.getToken(), invitation.getEmail(), invitation.getExpiresAt(), link);
+	private InvitationResponse toResponse(Invitation invitation, String token) {
+		String link = publicBaseUrl + "/invite/" + token;
+		return new InvitationResponse(token, invitation.getEmail(), invitation.getExpiresAt(), link);
 	}
 
 	private static String normalizeEmail(String email) {

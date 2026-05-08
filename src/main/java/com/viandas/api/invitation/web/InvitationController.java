@@ -56,12 +56,12 @@ public class InvitationController {
     }
 
     @GetMapping("/invitations/{token}")
-    ApiResponse<InvitationValidationResponse> validate(@PathVariable UUID token) {
+    ApiResponse<InvitationValidationResponse> validate(@PathVariable String token) {
         return ApiResponse.ok("Invitacion obtenida", invitationService.validate(token));
     }
 
     @PostMapping("/invitations/{token}/accept")
-    ApiResponse<AuthResponse> accept(@PathVariable UUID token, @Valid @RequestBody AcceptInvitationRequest request) {
+    ApiResponse<AuthResponse> accept(@PathVariable String token, @Valid @RequestBody AcceptInvitationRequest request) {
         return ApiResponse.ok("Invitacion aceptada", invitationService.accept(token, request));
     }
 }
