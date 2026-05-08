@@ -15,6 +15,7 @@ import com.viandas.api.menu.domain.MenuPublicLink;
 import com.viandas.api.menu.domain.MenuScope;
 import com.viandas.api.menu.domain.MenuStatus;
 import com.viandas.api.menu.dto.request.AddMenuItemRequest;
+import com.viandas.api.menu.dto.request.CloneMenuRequest;
 import com.viandas.api.menu.dto.request.CreateMenuRequest;
 import com.viandas.api.menu.dto.response.MenuCompanyResponse;
 import com.viandas.api.menu.dto.response.MenuItemResponse;
@@ -153,6 +154,40 @@ public class MenuService {
         }
 
         menuRepository.delete(menu);
+    }
+
+    @Transactional
+    public MenuResponse clone(CurrentUser currentUser, UUID sourceId, CloneMenuRequest request) {
+        Menu source = requireOwnedMenu(currentUser, sourceId);
+        LocalTime closesAt = request.orderClosesAt() != null ? request.orderClosesAt() : source.getOrderClosesAt();
+
+        Menu cloned;
+        if (source.getScope() == MenuScope.GLOBAL) {
+            if (menuRepository.findByCookIdAndScopeAndMenuDate(currentUser.userId(), MenuScope.GLOBAL, request.date()).isPresent()) {
+                throw ApiException.conflict("Ya existe un menú global para esa fecha");
+            }
+            cloned = new Menu(source.getCook(), request.date(), closesAt);
+            cloned.getAssignedCompanies().addAll(source.getAssignedCompanies());
+        } else {
+            if (menuRepository.findByCompanyIdAndMenuDate(source.getCompany().getId(), request.date()).isPresent()) {
+                throw ApiException.conflict("Ya existe un menú para esa empresa/fecha");
+            }
+            cloned = new Menu(source.getCompany(), request.date(), closesAt);
+        }
+
+        Menu saved = menuRepository.save(cloned);
+
+        List<MenuItem> clonedItems = source.getItems().stream().map(original -> {
+            MenuItem item = new MenuItem(saved, original.getName(), original.getPrice(), original.getCategory());
+            item.setPhotoUrl(original.getPhotoUrl());
+            item.setRemainingStock(original.getRemainingStock());
+            item.getAvailableCompanies().addAll(original.getAvailableCompanies());
+            return item;
+        }).toList();
+
+        menuItemRepository.saveAll(clonedItems);
+        saved.getItems().addAll(clonedItems);
+        return toMenuResponse(saved, clonedItems);
     }
 
     @Transactional(readOnly = true)

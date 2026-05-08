@@ -5,6 +5,7 @@ import java.util.UUID;
 import com.viandas.api.menu.domain.*;
 import com.viandas.api.menu.application.*;
 import com.viandas.api.menu.dto.request.AddMenuItemRequest;
+import com.viandas.api.menu.dto.request.CloneMenuRequest;
 import com.viandas.api.menu.dto.request.CreateMenuRequest;
 import com.viandas.api.menu.dto.response.MenuItemResponse;
 import com.viandas.api.menu.dto.response.MenuResponse;
@@ -47,6 +48,10 @@ public class MenuController {
 		return ApiResponse.ok("Menu eliminado", null);
 	}
 
+	@PostMapping("/menus/{id}/clone")
+	ApiResponse<MenuResponse> clone(@PathVariable UUID id, @Valid @RequestBody CloneMenuRequest request) {
+		return ApiResponse.ok("Menu clonado", menuService.clone(SecurityUtils.currentUser(), id, request));
+	}
 
 	@PostMapping("/menus/{id}/items")
 	ApiResponse<MenuItemResponse> addItem(@PathVariable UUID id, @Valid @RequestBody AddMenuItemRequest request) {

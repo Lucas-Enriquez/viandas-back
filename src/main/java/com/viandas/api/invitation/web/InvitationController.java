@@ -32,6 +32,11 @@ public class InvitationController {
         this.globalInvitationService = globalInvitationService;
     }
 
+    @GetMapping("/companies/{id}/global-invitation")
+    ApiResponse<GlobalInvitationPreviewResponse> getCurrent(@PathVariable UUID id) {
+        return ApiResponse.ok("Invitacion global obtenida", globalInvitationService.getCurrent(SecurityUtils.currentUser(), id));
+    }
+
     @PostMapping("/companies/{id}/global-invitation")
     ApiResponse<GlobalInvitationResponse> create(@PathVariable UUID id, @Valid @RequestBody CreateGlobalInvitationRequest request) {
         return ApiResponse.ok("Invitacion global creada", globalInvitationService.create(SecurityUtils.currentUser(), id, request));

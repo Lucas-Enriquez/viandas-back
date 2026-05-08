@@ -314,7 +314,7 @@ Response:
 
 ### POST `/internal/bootstrap/cook`
 
-Publico, solo dev/internal. Crea un `COOK`.
+**Solo disponible con perfil `dev`** (no existe en producción). Crea un `COOK`.
 
 Request:
 
@@ -460,6 +460,18 @@ type GeocodePreviewResponse = {
 };
 ```
 
+### DELETE `/companies/{id}`
+
+Elimina la empresa y **todos sus datos relacionados** de forma permanente: pedidos, menúes, sesiones de reparto, invitaciones, membresías, etc. No hay forma de deshacer esta accion.
+
+El front debe pedir confirmacion al usuario antes de llamar este endpoint (por ejemplo, un input donde escriba "eliminar").
+
+Response: `204 No Content`.
+
+Errores posibles:
+- `403` si la empresa no le pertenece al cook autenticado.
+- `404` si no existe.
+
 ## Invitations
 
 ### POST `/companies/{id}/invitations`
@@ -478,7 +490,7 @@ Response:
 
 ```ts
 type InvitationResponse = {
-  token: string;
+  token: string;  // token opaco (string), no UUID
   email: string;
   expiresAt: string;
   link: string;
@@ -490,10 +502,11 @@ Reglas:
 - Dura 72 horas.
 - Es de un solo uso.
 - El email del accept debe coincidir con el email invitado.
+- El `token` es un string opaco. Usarlo tal cual en la URL.
 
 ### GET `/invitations/{token}`
 
-Publico. Preview de invitacion individual.
+Publico. Preview de invitacion individual. `{token}` es string opaco.
 
 Response:
 
@@ -507,7 +520,7 @@ type InvitationValidationResponse = {
 
 ### POST `/invitations/{token}/accept`
 
-Publico. Registra un `EMPLOYEE`, lo asocia a la empresa y lo deja logueado.
+Publico. Registra un `EMPLOYEE`, lo asocia a la empresa y lo deja logueado. `{token}` es string opaco.
 
 Request:
 
@@ -527,9 +540,20 @@ Errores de negocio:
 - `409` si la invitacion ya fue usada o vencio.
 - `400` si el email no coincide con la invitacion.
 
+### GET `/companies/{id}/global-invitation`
+
+Auth `COOK`. Devuelve el estado de la invitacion global activa de la empresa, sin crear una nueva.
+Util para mostrar en la pantalla de empresa cuántos la usaron y si sigue activa.
+
+Response: `ApiResponse<GlobalInvitationPreviewResponse>`.
+
+- `404` si no hay ninguna activa.
+
 ### POST `/companies/{id}/global-invitation`
 
-Auth `COOK`. Crea un link global para que varios empleados de una misma empresa se registren.
+Auth `COOK`. Crea (o renueva) el link global de la empresa. Revoca el anterior si existia.
+El `token` plain solo aparece en este response — es la unica vez que se puede ver.
+Guardarlo en el front para poder compartirlo despues.
 
 Request:
 
@@ -539,7 +563,7 @@ Request:
 }
 ```
 
-`maxUses` puede ser `null`.
+`maxUses` puede ser `null` (sin limite).
 
 Response:
 
@@ -548,19 +572,20 @@ type GlobalInvitationResponse = {
   token: string;
   company: string;
   expiresAt: string;
-  link: string;
+  link: string;   // = {publicBaseUrl}/global-invitation/{token}
 };
 ```
 
 Reglas:
 
-- Dura 72 horas.
+- Dura 365 dias por defecto (configurable en el servidor).
 - Si ya habia una invitacion global activa para esa empresa, se revoca.
-- El `link` apunta a `/global-invitation/{token}` para que Expo muestre preview antes de aceptar.
+- El `link` es el que se comparte con los empleados para que se registren.
+- **Guardar el `link` del response**: no hay forma de recuperar el token despues.
 
 ### GET `/global-invitation/{token}`
 
-Publico. Preview de invitacion global.
+Publico. Preview de invitacion global. Mostrar antes de que el empleado acepte.
 
 Response:
 
@@ -654,6 +679,41 @@ Reglas:
 - Menu `COMPANY`: maximo uno por empresa/fecha.
 - Menu `GLOBAL`: maximo uno por cook/fecha.
 - En `GLOBAL`, `companyIds` es obligatorio.
+
+### POST `/menus/{id}/clone`
+
+Auth `COOK`. Crea un nuevo menu en `DRAFT` copiando los items de uno existente.
+Pensado para el flujo diario: clonar el menu de ayer, ajustar lo que cambio, publicar.
+
+Request:
+
+```json
+{
+  "date": "2026-05-08",
+  "orderClosesAt": "11:30:00"
+}
+```
+
+- `date` requerido.
+- `orderClosesAt` opcional. Si se omite, se hereda del menu original.
+
+Response: `ApiResponse<MenuResponse>` — el nuevo menu en `DRAFT` con todos los items copiados.
+
+Que se copia:
+
+- Todos los items: nombre, precio, categoria, foto, stock, empresas disponibles por item.
+- Para menus `GLOBAL`: las empresas asignadas al menu.
+- Para menus `COMPANY`: la misma empresa.
+
+Que NO se copia:
+
+- Status (siempre `DRAFT`).
+- Links publicos.
+- Pedidos.
+
+Errores de negocio:
+
+- `409` si ya existe un menu para esa empresa/fecha (`COMPANY`) o para ese cook/fecha (`GLOBAL`).
 
 ### POST `/menus/{id}/items`
 
@@ -996,53 +1056,145 @@ Nota actual: el backend guarda dispositivos, pero el envio FCM real esta como no
 
 ## Flujos Expo Sugeridos
 
-### Flujo COOK
+### Flujo Diario Del COOK (caso de uso principal)
+
+Este es el flujo que el cook ejecuta cada mañana para las ~40 empresas.
+
+**1. Obtener el menu de ayer para clonar**
+
+```
+GET /menus?date={ayer}
+```
+
+Buscar el menu global con `scope = "GLOBAL"` de la fecha anterior.
+Guardar su `id`.
+
+**2. Clonar al dia de hoy**
+
+```
+POST /menus/{idDeAyer}/clone
+{ "date": "2026-05-08" }
+```
+
+Responde el nuevo menu en `DRAFT` con todos los items.
+Mostrar pantalla de edicion donde el cook puede:
+- Cambiar precios.
+- Cambiar stock (`remainingStock`).
+- Agregar items nuevos (`POST /menus/{id}/items`).
+- El scope, las empresas asignadas y las empresas por item ya vienen copiadas.
+
+**3. Publicar**
+
+```
+PATCH /menus/{id}/publish
+```
+
+Responde `ShareMessageResponse`:
+
+```ts
+{
+  publicLinkId: string;
+  publicUrl: string;    // link para empleados: {base}/m/global/{date}?t={token}
+  whatsappText: string; // texto listo para pegar en WhatsApp
+}
+```
+
+**Guardar el `publicUrl` y el `whatsappText`** en el estado local para el paso siguiente.
+
+**4. Enviar a cada grupo de WhatsApp**
+
+El backend genera el texto una sola vez por publicacion.
+El front muestra una pantalla con la lista de las empresas asignadas al menu y un boton
+"Copiar mensaje" por empresa. Cada empresa tiene su propio share message porque el link
+incluye el `companySlug`:
+
+- Menu `GLOBAL`: todos comparten la misma URL (`/m/global/{date}?t=...`).
+  El cook copia el mismo texto para todos los grupos.
+- Menu `COMPANY`: cada empresa tiene URL distinta (`/m/{slug}/{date}?t=...`).
+  Si necesita links por empresa, usar `GET /menus/{id}/share-message` por cada una.
+
+Para obtener el mensaje en cualquier momento despues de publicar:
+
+```
+GET /menus/{id}/share-message
+```
+
+**5. Monitorear pedidos**
+
+```
+GET /orders/today          // listado inicial
+GET /orders/stream         // SSE tiempo real
+PATCH /orders/{id}/...     // cambiar estado
+```
+
+---
+
+### Flujo COOK (setup inicial — solo una vez por empresa)
 
 1. Login: `POST /auth/login`.
 2. Guardar `accessToken` y `refreshToken`.
 3. Contexto: `GET /me/context`.
-4. Empresas:
-   - listar `GET /companies`;
-   - crear `POST /companies`;
-   - editar `PATCH /companies/{id}`.
-5. Invitaciones:
-   - individual `POST /companies/{id}/invitations`;
-   - global `POST /companies/{id}/global-invitation`.
-6. Menus:
-   - listar `GET /menus`;
-   - crear menu company/global `POST /menus`;
-   - agregar items `POST /menus/{id}/items`;
-   - publicar `PATCH /menus/{id}/publish`.
-7. Pedidos:
-   - listado inicial `GET /orders/today`;
-   - tiempo real `GET /orders/stream`;
-   - cambiar estado con endpoints `PATCH /orders/{id}/...`.
-8. Reparto:
-   - iniciar `POST /delivery-sessions`;
-   - actualizar ubicacion `PATCH /delivery-sessions/{id}/location`;
-   - finalizar `POST /delivery-sessions/{id}/finish`.
+4. Crear empresas: `POST /companies` (una vez por empresa).
+5. Generar link de registro para cada empresa:
+   ```
+   POST /companies/{id}/global-invitation
+   { "maxUses": null }
+   ```
+   **Guardar el `link` del response** — es la unica vez que se puede ver el token.
+   Este link dura 365 dias y sirve para todos los ingresos nuevos.
+6. Crear el primer menu global:
+   ```
+   POST /menus
+   { "scope": "GLOBAL", "companyIds": [...], "date": "...", "orderClosesAt": "11:30:00" }
+   ```
+   Agregar items: `POST /menus/{id}/items`.
+   Publicar: `PATCH /menus/{id}/publish`.
+   A partir del dia siguiente usar el flujo de clone.
+
+### Flujo COOK (eliminar empresa)
+
+Accion destructiva e irreversible. Elimina la empresa y todo lo asociado: pedidos, menus, invitaciones, membresías, sesiones de reparto, etc.
+
+1. El cook elige una empresa desde la lista: `GET /companies`.
+2. El front muestra un modal de confirmacion con un input donde debe escribir `"eliminar"` antes de habilitar el boton.
+3. Al confirmar:
+   ```
+   DELETE /companies/{id}
+   ```
+   Responde `204 No Content`.
+4. Si responde `204`: remover la empresa del estado local y navegar de vuelta al listado.
+5. Si responde `403` o `404`: mostrar error — la empresa no existe o no le pertenece.
+
+**Importante:** la comprobacion del texto "eliminar" es responsabilidad del front. El backend no valida ninguna confirmacion; simplemente ejecuta el borrado si el cook es el dueno de la empresa.
 
 ### Flujo EMPLOYEE Con Link Global
 
-1. Abrir link `/global-invitation/{token}`.
-2. Preview: `GET /global-invitation/{token}`.
-3. Registro: `POST /global-invitation/{token}/accept`.
-4. Guardar tokens.
-5. Contexto: `GET /me/context`.
-6. Abrir link de menu global `/m/global/{date}?t={token}`.
-7. Menu: `GET /employee/menus/global/{date}?t={token}`.
-8. Pedido actual: `GET /employee/menus/global/{date}/orders/current?t={token}`.
-9. Si puede pedir: `POST /employee/menus/global/{date}/orders?t={token}`.
-10. Registrar push: `POST /me/notification-devices`.
+El empleado recibe el link de su empresa (guardado por el cook en el setup inicial).
+El link tiene la forma: `{publicBaseUrl}/global-invitation/{token}`.
+
+1. Abrir la app con ese link.
+2. Preview: `GET /global-invitation/{token}` — mostrar nombre de empresa y estado.
+3. Si `usable = true`, mostrar formulario de registro.
+4. Registro: `POST /global-invitation/{token}/accept`.
+5. Guardar `accessToken` y `refreshToken`.
+6. Contexto: `GET /me/context` — confirma empresa asignada.
+7. El cook le comparte el link del menu del dia: `/m/global/{date}?t={menuToken}`.
+8. Menu: `GET /employee/menus/global/{date}?t={menuToken}`.
+9. Pedido actual: `GET /employee/menus/global/{date}/orders/current?t={menuToken}`.
+10. Si puede pedir: `POST /employee/menus/global/{date}/orders?t={menuToken}`.
+11. Registrar push: `POST /me/notification-devices`.
+
+Nota: el link de registro (`/global-invitation/{token}`) y el link del menu (`/m/global/...`)
+son dos links distintos con tokens distintos. El primero es para registrarse, el segundo es diario.
 
 ### Flujo EMPLOYEE Con Invitacion Individual
 
-1. Abrir link `/invite/{token}`.
+1. Abrir link `/invite/{token}` (token es string opaco, no UUID).
 2. Preview: `GET /invitations/{token}`.
 3. Registro: `POST /invitations/{token}/accept`.
 4. Guardar tokens.
 5. Contexto: `GET /me/context`.
-6. Continuar con flujo de menu global si el cook compartio un link global.
+6. Continuar con flujo de menu global cuando el cook comparta el link diario.
 
 ### Flujo CUSTOMER
 
@@ -1064,10 +1216,12 @@ Nota actual: el backend guarda dispositivos, pero el envio FCM real esta como no
 | EMPLOYEE | Preview invitacion individual | `GET /invitations/{token}` |
 | EMPLOYEE | Preview invitacion global | `GET /global-invitation/{token}` |
 | EMPLOYEE | Registro por invitacion | `POST /invitations/{token}/accept`, `POST /global-invitation/{token}/accept` |
-| COOK | Empresas | `/companies` |
-| COOK | Crear/editar empresa | `POST /companies`, `PATCH /companies/{id}`, `PATCH /companies/{id}/location` |
-| COOK | Invitaciones | `POST /companies/{id}/invitations`, `POST /companies/{id}/global-invitation` |
-| COOK | Menus | `GET /menus`, `POST /menus`, `POST /menus/{id}/items`, `PATCH /menus/{id}/publish` |
+| COOK | Empresas | `GET /companies` |
+| COOK | Detalle/editar empresa | `GET /companies/{id}`, `PATCH /companies/{id}`, `PATCH /companies/{id}/location` |
+| COOK | Crear empresa | `POST /companies` |
+| COOK | Confirmar eliminacion empresa | `DELETE /companies/{id}` (requiere confirmacion en front) |
+| COOK | Invitaciones | `GET /companies/{id}/global-invitation`, `POST /companies/{id}/global-invitation`, `POST /companies/{id}/invitations` |
+| COOK | Menus | `GET /menus`, `POST /menus`, `POST /menus/{id}/clone`, `POST /menus/{id}/items`, `PATCH /menus/{id}/publish` |
 | COOK | Pedidos de hoy | `GET /orders/today`, `GET /orders/stream` |
 | COOK | Estado pedido | `PATCH /orders/{id}/preparing`, `/out-for-delivery`, `/delivered`, `/cancel` |
 | COOK | Reparto | `/delivery-sessions` |
@@ -1085,3 +1239,12 @@ Nota actual: el backend guarda dispositivos, pero el envio FCM real esta como no
 - Para menus globales, el usuario debe estar logueado como `EMPLOYEE` antes de pedir el menu.
 - Para menus por empresa, el usuario puede ver el menu sin login, pero para pedir debe estar logueado como `CUSTOMER`.
 - Todos los identificadores son UUID string.
+- El token de invitacion global (`GlobalInvitationResponse.token`) solo se expone una vez al crearlo.
+  Guardarlo junto con el `link`. No hay endpoint para recuperarlo despues — solo se puede regenerar
+  (lo que invalida el anterior).
+- Los tokens de invitacion (global e individual) son strings opacos, no UUIDs. Tratarlos como strings.
+- El flujo diario del cook usa `POST /menus/{id}/clone` para arrancar con base, no `POST /menus` desde cero.
+  El menu clonado sale en `DRAFT`; publicar con `PATCH /menus/{id}/publish` cuando este listo.
+- `DELETE /companies/{id}` es irreversible y borra absolutamente todo lo asociado a la empresa.
+  El front debe exigir confirmacion explicita (ej: input con el texto "eliminar") antes de llamar el endpoint.
+  El backend no valida ningun texto de confirmacion — la proteccion es responsabilidad del front.

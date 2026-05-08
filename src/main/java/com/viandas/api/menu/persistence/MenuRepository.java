@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -54,4 +55,14 @@ public interface MenuRepository extends JpaRepository<Menu, UUID> {
 
 	@EntityGraph(attributePaths = {"items", "company", "assignedCompanies", "items.availableCompanies"})
 	Optional<Menu> findWithItemsById(UUID id);
+
+    /** Removes the company from the menu_companies join table (GLOBAL menus). */
+    @Modifying
+    @Query(value = "DELETE FROM menu_companies WHERE company_id = :companyId", nativeQuery = true)
+    void removeCompanyFromAllGlobalMenus(@Param("companyId") UUID companyId);
+
+    /** Deletes COMPANY-scope menus owned by the company. Items cascade via CascadeType.ALL. */
+    @Modifying
+    @Query("DELETE FROM Menu m WHERE m.company.id = :companyId")
+    void deleteByCompanyId(@Param("companyId") UUID companyId);
 }

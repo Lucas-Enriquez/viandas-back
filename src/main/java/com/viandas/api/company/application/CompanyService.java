@@ -7,6 +7,17 @@ import com.viandas.api.company.dto.request.CompanyLocationRequest;
 import com.viandas.api.company.dto.request.CompanyRequest;
 import com.viandas.api.company.dto.response.CompanyResponse;
 import com.viandas.api.company.persistence.*;
+import com.viandas.api.delivery.persistence.DeliveryLocationUpdateRepository;
+import com.viandas.api.delivery.persistence.DeliverySessionRepository;
+import com.viandas.api.invitation.persistence.GlobalInvitationRepository;
+import com.viandas.api.invitation.persistence.InvitationRepository;
+import com.viandas.api.menu.persistence.MenuItemRepository;
+import com.viandas.api.menu.persistence.MenuPublicLinkRepository;
+import com.viandas.api.menu.persistence.MenuRepository;
+import com.viandas.api.notification.persistence.StockBroadcastItemRepository;
+import com.viandas.api.notification.persistence.StockBroadcastRepository;
+import com.viandas.api.order.persistence.OrderItemRepository;
+import com.viandas.api.order.persistence.OrderRepository;
 import java.time.Instant;
 import java.util.List;
 
@@ -25,16 +36,52 @@ public class CompanyService {
 	private final CompanyLocationRepository companyLocationRepository;
 	private final UserRepository userRepository;
 	private final SlugGenerator slugGenerator;
+	private final DeliveryLocationUpdateRepository deliveryLocationUpdateRepository;
+	private final DeliverySessionRepository deliverySessionRepository;
+	private final StockBroadcastItemRepository stockBroadcastItemRepository;
+	private final StockBroadcastRepository stockBroadcastRepository;
+	private final OrderItemRepository orderItemRepository;
+	private final OrderRepository orderRepository;
+	private final MenuPublicLinkRepository menuPublicLinkRepository;
+	private final MenuItemRepository menuItemRepository;
+	private final MenuRepository menuRepository;
+	private final InvitationRepository invitationRepository;
+	private final GlobalInvitationRepository globalInvitationRepository;
+	private final CompanyMembershipRepository companyMembershipRepository;
 
 	public CompanyService(
 			CompanyRepository companyRepository,
 			CompanyLocationRepository companyLocationRepository,
 			UserRepository userRepository,
-			SlugGenerator slugGenerator) {
+			SlugGenerator slugGenerator,
+			DeliveryLocationUpdateRepository deliveryLocationUpdateRepository,
+			DeliverySessionRepository deliverySessionRepository,
+			StockBroadcastItemRepository stockBroadcastItemRepository,
+			StockBroadcastRepository stockBroadcastRepository,
+			OrderItemRepository orderItemRepository,
+			OrderRepository orderRepository,
+			MenuPublicLinkRepository menuPublicLinkRepository,
+			MenuItemRepository menuItemRepository,
+			MenuRepository menuRepository,
+			InvitationRepository invitationRepository,
+			GlobalInvitationRepository globalInvitationRepository,
+			CompanyMembershipRepository companyMembershipRepository) {
 		this.companyRepository = companyRepository;
 		this.companyLocationRepository = companyLocationRepository;
 		this.userRepository = userRepository;
 		this.slugGenerator = slugGenerator;
+		this.deliveryLocationUpdateRepository = deliveryLocationUpdateRepository;
+		this.deliverySessionRepository = deliverySessionRepository;
+		this.stockBroadcastItemRepository = stockBroadcastItemRepository;
+		this.stockBroadcastRepository = stockBroadcastRepository;
+		this.orderItemRepository = orderItemRepository;
+		this.orderRepository = orderRepository;
+		this.menuPublicLinkRepository = menuPublicLinkRepository;
+		this.menuItemRepository = menuItemRepository;
+		this.menuRepository = menuRepository;
+		this.invitationRepository = invitationRepository;
+		this.globalInvitationRepository = globalInvitationRepository;
+		this.companyMembershipRepository = companyMembershipRepository;
 	}
 
 	public List<CompanyResponse> list(CurrentUser currentUser) {
@@ -87,6 +134,65 @@ public class CompanyService {
 		company.setUpdatedAt(Instant.now());
 		companyLocationRepository.save(new CompanyLocation(company));
 		return toResponse(company);
+	}
+
+	/**
+	 * Elimina una empresa y todos sus datos relacionados en el orden correcto de FK.
+	 * Las entidades sin cascade JPA se borran con queries bulk; los hijos de entidades
+	 * con CascadeType.ALL se borran explícitamente antes del padre para evitar
+	 * que la caché de primer nivel quede sucia al mezclar bulk-delete con JPA.
+	 */
+	@Transactional
+	public void delete(CurrentUser currentUser, UUID id) {
+		requireOwnedCompany(currentUser, id); // valida ownership
+
+		// 1. delivery_location_updates (FK -> delivery_sessions -> company)
+		deliveryLocationUpdateRepository.deleteByDeliverySessionCompanyId(id);
+
+		// 2. delivery_sessions
+		deliverySessionRepository.deleteByCompanyId(id);
+
+		// 3. stock_broadcast_items (FK -> stock_broadcasts -> company)
+		stockBroadcastItemRepository.deleteByStockBroadcastCompanyId(id);
+
+		// 4. stock_broadcasts
+		stockBroadcastRepository.deleteByCompanyId(id);
+
+		// 5. order_items (FK -> orders -> company)
+		orderItemRepository.deleteByOrderCompanyId(id);
+
+		// 6. orders
+		orderRepository.deleteByCompanyId(id);
+
+		// 7. menu_public_links (FK directa a company O a menu de la company)
+		menuPublicLinkRepository.deleteByCompanyIdOrMenuCompanyId(id);
+
+		// 8. menu_item_companies join table (company como destino en GLOBAL menus)
+		menuItemRepository.removeCompanyFromAllMenuItems(id);
+
+		// 9. menu_companies join table (company asignada a GLOBAL menus)
+		menuRepository.removeCompanyFromAllGlobalMenus(id);
+
+		// 10. menu_items de los menúes COMPANY scope de esta empresa
+		menuItemRepository.deleteByMenuCompanyId(id);
+
+		// 11. menus COMPANY scope
+		menuRepository.deleteByCompanyId(id);
+
+		// 12. invitations individuales
+		invitationRepository.deleteByCompanyId(id);
+
+		// 13. global invitation
+		globalInvitationRepository.deleteByCompanyId(id);
+
+		// 14. membresías de empleados
+		companyMembershipRepository.deleteByCompanyId(id);
+
+		// 15. historial de ubicaciones
+		companyLocationRepository.deleteByCompanyId(id);
+
+		// 16. la empresa
+		companyRepository.deleteById(id);
 	}
 
 	public Company requireOwnedCompany(CurrentUser currentUser, UUID id) {

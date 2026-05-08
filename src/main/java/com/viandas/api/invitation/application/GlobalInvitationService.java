@@ -36,6 +36,7 @@ public class GlobalInvitationService {
 	private final CompanyMembershipRepository companyMembershipRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final AuthService authService;
+	private final long globalExpiryDays;
 
 	public GlobalInvitationService(
 			GlobalInvitationRepository globalInvitationRepository,
@@ -45,7 +46,8 @@ public class GlobalInvitationService {
 			UserRepository userRepository,
 			CompanyMembershipRepository companyMembershipRepository,
 			PasswordEncoder passwordEncoder,
-			AuthService authService) {
+			AuthService authService,
+			@Value("${viandas.invitation.global-expiry-days}") long globalExpiryDays) {
 		this.globalInvitationRepository = globalInvitationRepository;
 		this.companyService = companyService;
 		this.tokenHasher = tokenHasher;
@@ -54,14 +56,39 @@ public class GlobalInvitationService {
 		this.companyMembershipRepository = companyMembershipRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.authService = authService;
+		this.globalExpiryDays = globalExpiryDays;
 	}
 
+	/**
+	 * Devuelve la invitación global activa de la empresa, sin crear una nueva.
+	 * El token plain no se puede reconstruir desde el hash, así que si hay una activa
+	 * devolvemos la info sin el token (el cook ya lo tiene en su link guardado).
+	 * Si no hay ninguna activa, devuelve 404.
+	 */
+	@Transactional(readOnly = true)
+	public GlobalInvitationPreviewResponse getCurrent(CurrentUser currentUser, UUID companyId) {
+		companyService.requireOwnedCompany(currentUser, companyId);
+		GlobalInvitation invitation = globalInvitationRepository.findByCompanyIdAndActiveTrue(companyId)
+				.orElseThrow(() -> ApiException.notFound("No hay invitación global activa para esta empresa"));
+		return new GlobalInvitationPreviewResponse(
+				invitation.getCompany().getName(),
+				invitation.getExpiresAt(),
+				isUsable(invitation, Instant.now()),
+				invitation.getMaxUses(),
+				invitation.getUsedCount());
+	}
+
+	/**
+	 * Crea (o renueva) la invitación global de la empresa.
+	 * Revoca la anterior si existía. Devuelve el token plain una única vez.
+	 */
 	@Transactional
 	public GlobalInvitationResponse create(CurrentUser currentUser, UUID companyId, CreateGlobalInvitationRequest request) {
 		Company company = companyService.requireOwnedCompany(currentUser, companyId);
 		revokeExistingInvitation(companyId);
 
-		GlobalInvitation invitation = new GlobalInvitation(company, Instant.now().plusSeconds(72 * 60 * 60));
+		Instant expiresAt = Instant.now().plusSeconds(globalExpiryDays * 24 * 60 * 60);
+		GlobalInvitation invitation = new GlobalInvitation(company, expiresAt);
 		String token = tokenHasher.newToken();
 		invitation.setTokenHash(tokenHasher.hash(token));
 		invitation.setMaxUses(request.maxUses());
