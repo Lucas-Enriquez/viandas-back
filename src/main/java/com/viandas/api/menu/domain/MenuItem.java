@@ -8,6 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 import com.viandas.api.company.domain.Company;
+import com.viandas.api.product.domain.Product;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -22,6 +23,8 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -38,7 +41,13 @@ public class MenuItem {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "menu_id", nullable = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	private Menu menu;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "product_id")
+	@OnDelete(action = OnDeleteAction.SET_NULL)
+	private Product product;
 
 	@Column(nullable = false, length = 180)
 	private String name;
@@ -64,6 +73,7 @@ public class MenuItem {
 			name = "menu_item_companies",
 			joinColumns = @JoinColumn(name = "menu_item_id"),
 			inverseJoinColumns = @JoinColumn(name = "company_id"))
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	private Set<Company> availableCompanies = new LinkedHashSet<>();
 
 	public MenuItem(Menu menu, String name, BigDecimal price, MenuItemCategory category) {

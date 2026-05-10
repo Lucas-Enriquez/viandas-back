@@ -15,6 +15,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -31,10 +33,12 @@ public class MenuPublicLink {
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "menu_id", nullable = false)
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	private Menu menu;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "company_id")
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	private Company company;
 
 	@Column(name = "token_hash", nullable = false, unique = true, length = 128)

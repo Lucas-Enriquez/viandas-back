@@ -27,7 +27,10 @@ import com.viandas.api.menu.persistence.MenuPublicLinkRepository;
 import com.viandas.api.menu.persistence.MenuRepository;
 import com.viandas.api.notification.application.NotificationService;
 import com.viandas.api.order.persistence.OrderRepository;
+import com.viandas.api.product.application.ProductService;
+import com.viandas.api.product.domain.Product;
 import com.viandas.api.shared.ApiException;
+import com.viandas.api.shared.photo.PhotoUploadService;
 import com.viandas.api.shared.TokenHasher;
 import com.viandas.api.user.domain.User;
 import com.viandas.api.user.domain.UserRole;
@@ -64,6 +67,8 @@ public class MenuService {
     private final NotificationService notificationService;
     private final String publicBaseUrl;
     private final OrderRepository orderRepository;
+    private final ProductService productService;
+    private final PhotoUploadService photoUploadService;
 
     public MenuService(
             MenuRepository menuRepository,
@@ -76,7 +81,9 @@ public class MenuService {
             TokenHasher tokenHasher,
             NotificationService notificationService,
             @Value("${viandas.public-base-url}") String publicBaseUrl,
-            OrderRepository orderRepository
+            OrderRepository orderRepository,
+            ProductService productService,
+            PhotoUploadService photoUploadService
     ) {
         this.menuRepository = menuRepository;
         this.menuItemRepository = menuItemRepository;
@@ -89,6 +96,8 @@ public class MenuService {
         this.notificationService = notificationService;
         this.publicBaseUrl = publicBaseUrl;
         this.orderRepository = orderRepository;
+        this.productService = productService;
+        this.photoUploadService = photoUploadService;
     }
 
     @Transactional
@@ -181,6 +190,7 @@ public class MenuService {
             MenuItem item = new MenuItem(saved, original.getName(), original.getPrice(), original.getCategory());
             item.setPhotoUrl(original.getPhotoUrl());
             item.setRemainingStock(original.getRemainingStock());
+            item.setProduct(original.getProduct());
             item.getAvailableCompanies().addAll(original.getAvailableCompanies());
             return item;
         }).toList();
@@ -219,8 +229,9 @@ public class MenuService {
     @Transactional
     public MenuItemResponse addItem(CurrentUser currentUser, UUID menuId, AddMenuItemRequest request) {
         Menu menu = requireOwnedMenu(currentUser, menuId);
-        MenuItem item = new MenuItem(menu, request.name().trim(), request.price(), request.category());
-        item.setPhotoUrl(request.photoUrl());
+        MenuItem item = request.productId() != null
+                ? buildItemFromProduct(currentUser, menu, request)
+                : buildFreeFormItem(menu, request);
         item.setRemainingStock(request.remainingStock());
 
         if (menu.getScope() == MenuScope.GLOBAL) {
@@ -230,6 +241,36 @@ public class MenuService {
         }
 
         return toItemResponse(menuItemRepository.save(item));
+    }
+
+    private MenuItem buildItemFromProduct(CurrentUser currentUser, Menu menu, AddMenuItemRequest request) {
+        if (request.name() != null || request.price() != null
+                || request.category() != null || request.photoPublicId() != null) {
+            throw ApiException.badRequest("Si envias productId no puedes mandar campos sueltos");
+        }
+        Product product = productService.requireOwnedProduct(currentUser, request.productId());
+        MenuItem item = new MenuItem(menu, product.getName(), product.getPrice(), product.getCategory());
+        item.setPhotoUrl(product.getPhotoUrl());
+        item.setProduct(product);
+        return item;
+    }
+
+    private MenuItem buildFreeFormItem(Menu menu, AddMenuItemRequest request) {
+        if (request.name() == null || request.name().isBlank()) {
+            throw ApiException.badRequest("El nombre es obligatorio para items sueltos");
+        }
+        if (request.price() == null) {
+            throw ApiException.badRequest("El precio es obligatorio para items sueltos");
+        }
+        if (request.category() == null) {
+            throw ApiException.badRequest("La categoria es obligatoria para items sueltos");
+        }
+        photoUploadService.validateProductPublicId(request.photoPublicId());
+        MenuItem item = new MenuItem(menu, request.name().trim(), request.price(), request.category());
+        if (request.photoPublicId() != null && !request.photoPublicId().isBlank()) {
+            item.setPhotoUrl(photoUploadService.buildDeliveryUrl(request.photoPublicId()));
+        }
+        return item;
     }
 
     @Transactional

@@ -3,6 +3,8 @@ package com.viandas.api.invitation.domain;
 import com.viandas.api.company.domain.Company;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Positive;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -23,6 +25,7 @@ public class GlobalInvitation {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Company company;
 
     @Column(name = "token_hash", nullable = false)
