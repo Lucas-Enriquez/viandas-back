@@ -9,9 +9,6 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 public interface OrderRepository extends JpaRepository<CustomerOrder, UUID> {
 	@EntityGraph(attributePaths = {"items", "items.menuItem", "menu", "company"})
@@ -28,8 +25,4 @@ public interface OrderRepository extends JpaRepository<CustomerOrder, UUID> {
 	List<CustomerOrder> findByMenuIdAndCompanyIdAndStatusIn(UUID menuId, UUID companyId, List<OrderStatus> statuses);
 
 	boolean existsByMenuId(UUID id);
-
-    @Modifying
-    @Query("DELETE FROM CustomerOrder o WHERE o.company.id = :companyId")
-    void deleteByCompanyId(@Param("companyId") UUID companyId);
 }

@@ -28,6 +28,8 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -48,6 +50,7 @@ public class Menu {
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "company_id")
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	private Company company;
 
 	@Enumerated(EnumType.STRING)
@@ -81,6 +84,7 @@ public class Menu {
 			name = "menu_companies",
 			joinColumns = @JoinColumn(name = "menu_id"),
 			inverseJoinColumns = @JoinColumn(name = "company_id"))
+	@OnDelete(action = OnDeleteAction.CASCADE)
 	private Set<Company> assignedCompanies = new LinkedHashSet<>();
 
 	public Menu(Company company, LocalDate menuDate, LocalTime orderClosesAt) {
