@@ -231,6 +231,16 @@ public class MenuService {
     }
 
     @Transactional
+    public void removeItem(CurrentUser currentUser, UUID menuId, UUID itemId) {
+        Menu menu = requireOwnedMenu(currentUser, menuId);
+        MenuItem item = menuItemRepository.findById(itemId)
+                .filter(i -> i.getMenu().getId().equals(menu.getId()))
+                .orElseThrow(() -> ApiException.notFound("Item not found"));
+        menu.getItems().remove(item);
+        menuItemRepository.delete(item);
+    }
+
+    @Transactional
     public MenuItemResponse addItem(CurrentUser currentUser, UUID menuId, AddMenuItemRequest request) {
         Menu menu = requireOwnedMenu(currentUser, menuId);
         MenuItem item = request.productId() != null

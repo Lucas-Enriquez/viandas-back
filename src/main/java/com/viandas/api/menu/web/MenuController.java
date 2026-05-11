@@ -58,6 +58,12 @@ public class MenuController {
 		return ApiResponse.ok("Items obtenidos", menuService.getMenuItems(SecurityUtils.currentUser(), id));
 	}
 
+	@DeleteMapping("/menus/{menuId}/items/{itemId}")
+	ApiResponse<Void> removeItem(@PathVariable UUID menuId, @PathVariable UUID itemId) {
+		menuService.removeItem(SecurityUtils.currentUser(), menuId, itemId);
+		return ApiResponse.ok("Item eliminado", null);
+	}
+
 	@PostMapping("/menus/{id}/items")
 	ApiResponse<MenuItemResponse> addItem(@PathVariable UUID id, @Valid @RequestBody AddMenuItemRequest request) {
 		return ApiResponse.ok("Item agregado", menuService.addItem(SecurityUtils.currentUser(), id, request));
