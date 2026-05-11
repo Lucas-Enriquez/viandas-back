@@ -154,10 +154,6 @@ public class MenuService {
 
         Menu menu = requireOwnedMenu(currentUser, id);
 
-        if (menu.getStatus() == MenuStatus.PUBLISHED) {
-            throw ApiException.conflict("No se puede eliminar un menú publicado");
-        }
-
         if (orderRepository.existsByMenuId(menu.getId())) {
             throw ApiException.conflict("No se puede eliminar un menú con pedidos");
         }
@@ -226,6 +222,14 @@ public class MenuService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<MenuItemResponse> getMenuItems(CurrentUser currentUser, UUID menuId) {
+        Menu menu = requireOwnedMenu(currentUser, menuId);
+        return menu.getItems().stream()
+                .map(this::toItemResponse)
+                .toList();
+    }
+
     @Transactional
     public MenuItemResponse addItem(CurrentUser currentUser, UUID menuId, AddMenuItemRequest request) {
         Menu menu = requireOwnedMenu(currentUser, menuId);
@@ -276,6 +280,9 @@ public class MenuService {
     @Transactional
     public ShareMessageResponse publish(CurrentUser currentUser, UUID menuId) {
         Menu menu = requireOwnedMenu(currentUser, menuId);
+        if (menu.getItems().isEmpty()) {
+            throw ApiException.conflict("No se puede publicar un menú sin items");
+        }
         menu.setStatus(MenuStatus.PUBLISHED);
         menu.setPublishedAt(Instant.now());
         menu.setUpdatedAt(Instant.now());

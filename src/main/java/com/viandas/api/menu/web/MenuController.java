@@ -53,6 +53,11 @@ public class MenuController {
 		return ApiResponse.ok("Menu clonado", menuService.clone(SecurityUtils.currentUser(), id, request));
 	}
 
+	@GetMapping("/menus/{id}/items")
+	ApiResponse<List<MenuItemResponse>> getItems(@PathVariable UUID id) {
+		return ApiResponse.ok("Items obtenidos", menuService.getMenuItems(SecurityUtils.currentUser(), id));
+	}
+
 	@PostMapping("/menus/{id}/items")
 	ApiResponse<MenuItemResponse> addItem(@PathVariable UUID id, @Valid @RequestBody AddMenuItemRequest request) {
 		return ApiResponse.ok("Item agregado", menuService.addItem(SecurityUtils.currentUser(), id, request));
