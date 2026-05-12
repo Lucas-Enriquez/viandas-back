@@ -8,7 +8,10 @@
       "Bash(./mvnw.cmd -DskipTests compile)",
       "Bash(echo \"EXIT=$?\")",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(./mvnw test *)",
+      "Bash(./mvnw compile *)",
+      "Bash(ls -la \"C:\\\\Users\\\\lucas\\\\OneDrive\\\\Documentos\\\\lab\\\\viandas\")"
     ]
   }
 }

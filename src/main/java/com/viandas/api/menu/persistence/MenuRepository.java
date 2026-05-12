@@ -54,4 +54,21 @@ public interface MenuRepository extends JpaRepository<Menu, UUID> {
 
 	@EntityGraph(attributePaths = {"items", "company", "assignedCompanies", "items.availableCompanies"})
 	Optional<Menu> findWithItemsById(UUID id);
+
+	@EntityGraph(attributePaths = {"company", "assignedCompanies"})
+	@Query("""
+			select distinct m from Menu m
+			left join m.assignedCompanies ac
+			where m.menuDate = :date
+			and m.status = com.viandas.api.menu.domain.MenuStatus.PUBLISHED
+			and (
+			    (m.scope = com.viandas.api.menu.domain.MenuScope.COMPANY and m.company.id = :companyId)
+			    or
+			    (m.scope = com.viandas.api.menu.domain.MenuScope.GLOBAL  and ac.id = :companyId)
+			)
+			order by m.scope asc
+			""")
+	Optional<Menu> findPublishedByCompanyAndDate(
+			@Param("companyId") UUID companyId,
+			@Param("date") LocalDate date);
 }

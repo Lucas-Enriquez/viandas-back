@@ -32,7 +32,6 @@ import com.viandas.api.order.dto.response.StockBroadcastResponse;
 import com.viandas.api.order.persistence.OrderRepository;
 import com.viandas.api.shared.ApiException;
 import com.viandas.api.user.domain.User;
-import com.viandas.api.user.domain.UserRole;
 import com.viandas.api.user.persistence.UserRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -85,40 +84,8 @@ public class OrderService {
 	}
 
 	@Transactional
-	public OrderResponse createPublicOrder(CurrentUser currentUser, String companySlug, LocalDate date, String token, CreateOrderRequest request) {
-		if (currentUser.role() != UserRole.CUSTOMER) {
-			throw ApiException.forbidden("Customer role required");
-		}
-		MenuService.PublicMenuAccess access = menuService.validatePublicAccess(companySlug, date, token);
-		Menu menu = access.menu();
-		Company company = access.company();
-		if (!canOrder(menu)) {
-			throw ApiException.conflict("Orders are closed for this menu");
-		}
-		User customer = userRepository.findById(currentUser.userId()).orElseThrow(() -> ApiException.unauthorized("User not found"));
-		orderRepository.findFirstByMenuIdAndCustomerIdAndStatusNotOrderByCreatedAtDesc(menu.getId(), customer.getId(), OrderStatus.CANCELLED)
-				.ifPresent(existing -> {
-					throw ApiException.conflict("Customer already has an active order for this menu");
-				});
-
-		CustomerOrder order = new CustomerOrder();
-		order.setMenu(menu);
-		order.setCompany(company);
-		order.setCustomer(customer);
-		order.setSource(OrderSource.CUSTOMER);
-		order.setStatus(OrderStatus.RECEIVED);
-		order.setCustomerNameSnapshot(customer.getName());
-		applyItems(order, menu, company, request);
-
-		CustomerOrder saved = orderRepository.save(order);
-		OrderResponse response = toResponse(saved, DeliveryPublicSignal.UNKNOWN);
-		orderEventBroadcaster.publish(company.getId(), "order.created", response);
-		return response;
-	}
-
-	@Transactional
-	public OrderResponse createEmployeeGlobalOrder(CurrentUser currentUser, LocalDate date, String token, CreateOrderRequest request) {
-		MenuService.GlobalMenuAccess access = menuService.validateEmployeeGlobalAccess(currentUser, date, token);
+	public OrderResponse createEmployeeOrder(CurrentUser currentUser, LocalDate date, CreateOrderRequest request) {
+		MenuService.EmployeeMenuAccess access = menuService.requireEmployeeMenuAccess(currentUser, date);
 		Menu menu = access.menu();
 		Company company = access.company();
 		if (!canOrder(menu)) {
@@ -145,23 +112,9 @@ public class OrderService {
 		return response;
 	}
 
-	public CurrentOrderResponse currentPublicOrder(CurrentUser currentUser, String companySlug, LocalDate date, String token) {
-		if (currentUser.role() != UserRole.CUSTOMER) {
-			throw ApiException.forbidden("Customer role required");
-		}
-		Menu menu = menuService.validatePublicAccess(companySlug, date, token).menu();
-		var order = orderRepository.findFirstByMenuIdAndCustomerIdAndStatusNotOrderByCreatedAtDesc(menu.getId(), currentUser.userId(), OrderStatus.CANCELLED);
-		if (order.isEmpty()) {
-			boolean canOrder = canOrder(menu);
-			return new CurrentOrderResponse(false, canOrder, canOrder ? "Todavia podes pedir." : "Pedidos cerrados. Volve manana.", null);
-		}
-		DeliveryPublicSignal signal = deliverySignal(order.get().getMenu(), order.get().getCompany());
-		OrderResponse response = toResponse(order.get(), signal);
-		return new CurrentOrderResponse(true, false, messageFor(order.get().getStatus(), signal), response);
-	}
-
-	public CurrentOrderResponse currentEmployeeGlobalOrder(CurrentUser currentUser, LocalDate date, String token) {
-		Menu menu = menuService.validateEmployeeGlobalAccess(currentUser, date, token).menu();
+	public CurrentOrderResponse currentEmployeeOrder(CurrentUser currentUser, LocalDate date) {
+		MenuService.EmployeeMenuAccess access = menuService.requireEmployeeMenuAccess(currentUser, date);
+		Menu menu = access.menu();
 		var order = orderRepository.findFirstByMenuIdAndEmployeeIdAndStatusNotOrderByCreatedAtDesc(menu.getId(), currentUser.userId(), OrderStatus.CANCELLED);
 		if (order.isEmpty()) {
 			boolean canOrder = canOrder(menu);

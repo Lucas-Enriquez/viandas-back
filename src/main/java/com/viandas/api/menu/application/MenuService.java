@@ -11,7 +11,6 @@ import com.viandas.api.company.persistence.CompanyRepository;
 import com.viandas.api.menu.domain.Menu;
 import com.viandas.api.menu.domain.MenuItem;
 import com.viandas.api.menu.domain.MenuItemCategory;
-import com.viandas.api.menu.domain.MenuPublicLink;
 import com.viandas.api.menu.domain.MenuScope;
 import com.viandas.api.menu.domain.MenuStatus;
 import com.viandas.api.menu.dto.request.AddMenuItemRequest;
@@ -23,7 +22,6 @@ import com.viandas.api.menu.dto.response.MenuResponse;
 import com.viandas.api.menu.dto.response.PublicMenuResponse;
 import com.viandas.api.menu.dto.response.ShareMessageResponse;
 import com.viandas.api.menu.persistence.MenuItemRepository;
-import com.viandas.api.menu.persistence.MenuPublicLinkRepository;
 import com.viandas.api.menu.persistence.MenuRepository;
 import com.viandas.api.notification.application.NotificationService;
 import com.viandas.api.order.persistence.OrderRepository;
@@ -31,7 +29,6 @@ import com.viandas.api.product.application.ProductService;
 import com.viandas.api.product.domain.Product;
 import com.viandas.api.shared.ApiException;
 import com.viandas.api.shared.photo.PhotoUploadService;
-import com.viandas.api.shared.TokenHasher;
 import com.viandas.api.user.domain.User;
 import com.viandas.api.user.domain.UserRole;
 import com.viandas.api.user.persistence.UserRepository;
@@ -58,12 +55,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class MenuService {
     private final MenuRepository menuRepository;
     private final MenuItemRepository menuItemRepository;
-    private final MenuPublicLinkRepository menuPublicLinkRepository;
     private final CompanyService companyService;
     private final CompanyRepository companyRepository;
     private final CompanyMembershipRepository companyMembershipRepository;
     private final UserRepository userRepository;
-    private final TokenHasher tokenHasher;
     private final NotificationService notificationService;
     private final String publicBaseUrl;
     private final OrderRepository orderRepository;
@@ -73,12 +68,10 @@ public class MenuService {
     public MenuService(
             MenuRepository menuRepository,
             MenuItemRepository menuItemRepository,
-            MenuPublicLinkRepository menuPublicLinkRepository,
             CompanyService companyService,
             CompanyRepository companyRepository,
             CompanyMembershipRepository companyMembershipRepository,
             UserRepository userRepository,
-            TokenHasher tokenHasher,
             NotificationService notificationService,
             @Value("${viandas.public-base-url}") String publicBaseUrl,
             OrderRepository orderRepository,
@@ -87,12 +80,10 @@ public class MenuService {
     ) {
         this.menuRepository = menuRepository;
         this.menuItemRepository = menuItemRepository;
-        this.menuPublicLinkRepository = menuPublicLinkRepository;
         this.companyService = companyService;
         this.companyRepository = companyRepository;
         this.companyMembershipRepository = companyMembershipRepository;
         this.userRepository = userRepository;
-        this.tokenHasher = tokenHasher;
         this.notificationService = notificationService;
         this.publicBaseUrl = publicBaseUrl;
         this.orderRepository = orderRepository;
@@ -297,10 +288,12 @@ public class MenuService {
         menu.setPublishedAt(Instant.now());
         menu.setUpdatedAt(Instant.now());
         menuRepository.save(menu);
-        ShareMessageResponse response = createShareMessage(menu);
+        String url = publicUrl(menu);
+        List<MenuItem> items = menuItemRepository.findByMenuIdOrderByCategoryAscIdAsc(menu.getId());
+        String text = buildShareText(menu, items, url);
         notificationService.notifyUser(menu.getCook()
                 .getId(), "Menu published", "Menu published for " + menuLabel(menu), Map.of());
-        return response;
+        return new ShareMessageResponse(url, text);
     }
 
     @Transactional
@@ -309,60 +302,34 @@ public class MenuService {
         if (menu.getStatus() != MenuStatus.PUBLISHED) {
             throw ApiException.conflict("Menu must be published before sharing");
         }
-        return createShareMessage(menu);
+        String url = publicUrl(menu);
+        List<MenuItem> items = menuItemRepository.findByMenuIdOrderByCategoryAscIdAsc(menu.getId());
+        String text = buildShareText(menu, items, url);
+        return new ShareMessageResponse(url, text);
     }
 
     @Transactional(readOnly = true)
-    public PublicMenuResponse getPublicMenu(String companySlug, LocalDate date, String token) {
-        PublicMenuAccess access = validatePublicAccess(companySlug, date, token);
-        List<MenuItem> items = menuItemRepository.findByMenuIdOrderByCategoryAscIdAsc(access.menu().getId());
-        return toPublicMenuResponse(access.menu(), access.company(), items);
-    }
-
-    @Transactional(readOnly = true)
-    public PublicMenuResponse getEmployeeGlobalMenu(CurrentUser currentUser, LocalDate date, String token) {
-        GlobalMenuAccess access = validateEmployeeGlobalAccess(currentUser, date, token);
-        List<MenuItem> items = menuItemRepository.findByMenuIdOrderByCategoryAscIdAsc(access.menu().getId()).stream()
+    public PublicMenuResponse getEmployeeMenu(CurrentUser currentUser, LocalDate date) {
+        EmployeeMenuAccess access = requireEmployeeMenuAccess(currentUser, date);
+        List<MenuItem> items = menuItemRepository.findByMenuIdOrderByCategoryAscIdAsc(access.menu().getId())
+                .stream()
                 .filter(item -> isItemAvailableForCompany(item, access.company()))
                 .toList();
         return toPublicMenuResponse(access.menu(), access.company(), items);
     }
 
     @Transactional(readOnly = true)
-    public PublicMenuAccess validatePublicAccess(String companySlug, LocalDate date, String token) {
-        MenuPublicLink link = requireActivePublicLink(token);
-        Menu menu = link.getMenu();
-        if (menu.getScope() != MenuScope.COMPANY) {
-            throw ApiException.unauthorized("Public token does not match company menu");
-        }
-        if (!menu.getCompany().getSlug().equals(companySlug) || !menu.getMenuDate().equals(date)) {
-            throw ApiException.unauthorized("Public token does not match menu");
-        }
-        if (menu.getStatus() != MenuStatus.PUBLISHED) {
-            throw ApiException.conflict("Menu is not published");
-        }
-        return new PublicMenuAccess(menu, link, menu.getCompany());
-    }
-
-    @Transactional(readOnly = true)
-    public GlobalMenuAccess validateEmployeeGlobalAccess(CurrentUser currentUser, LocalDate date, String token) {
+    public EmployeeMenuAccess requireEmployeeMenuAccess(CurrentUser currentUser, LocalDate date) {
         if (currentUser.role() != UserRole.EMPLOYEE) {
             throw ApiException.forbidden("Employee role required");
         }
-        MenuPublicLink link = requireActivePublicLink(token);
-        Menu menu = link.getMenu();
-        if (menu.getScope() != MenuScope.GLOBAL || !menu.getMenuDate().equals(date)) {
-            throw ApiException.unauthorized("Public token does not match global menu");
-        }
-        if (menu.getStatus() != MenuStatus.PUBLISHED) {
-            throw ApiException.conflict("Menu is not published");
-        }
         Company company = requireEmployeeCompany(currentUser);
-        if (!isMenuAssignedToCompany(menu, company.getId())) {
-            throw ApiException.forbidden("Company is not assigned to this menu");
-        }
-        return new GlobalMenuAccess(menu, link, company);
+        Menu menu = menuRepository.findPublishedByCompanyAndDate(company.getId(), date)
+                .orElseThrow(() -> ApiException.notFound("No hay menú publicado para tu empresa en esa fecha"));
+        return new EmployeeMenuAccess(menu, company);
     }
+
+    public record EmployeeMenuAccess(Menu menu, Company company) {}
 
     public Menu requireOwnedMenu(CurrentUser currentUser, UUID menuId) {
         if (!currentUser.isCook()) {
@@ -390,18 +357,6 @@ public class MenuService {
         }
         return item.getAvailableCompanies().isEmpty()
                 || item.getAvailableCompanies().stream().anyMatch(assigned -> assigned.getId().equals(company.getId()));
-    }
-
-    private MenuPublicLink requireActivePublicLink(String token) {
-        if (token == null || token.isBlank()) {
-            throw ApiException.unauthorized("Public token is required");
-        }
-        MenuPublicLink link = menuPublicLinkRepository.findByTokenHashAndActiveTrue(tokenHasher.hash(token))
-                .orElseThrow(() -> ApiException.unauthorized("Invalid public token"));
-        if (link.getExpiresAt().isBefore(Instant.now())) {
-            throw ApiException.unauthorized("Public token expired");
-        }
-        return link;
     }
 
     private void assignItemCompanies(Menu menu, MenuItem item, List<UUID> availableCompanyIds) {
@@ -433,25 +388,11 @@ public class MenuService {
                 .orElseThrow(() -> ApiException.forbidden("Employee has no company"));
     }
 
-    private ShareMessageResponse createShareMessage(Menu menu) {
-        menuPublicLinkRepository.findByMenuIdAndActiveTrue(menu.getId()).forEach(link -> link.setActive(false));
-        String token = tokenHasher.newToken();
-        MenuPublicLink link = menuPublicLinkRepository.save(new MenuPublicLink(
-                menu,
-                menu.getScope() == MenuScope.COMPANY ? menu.getCompany() : null,
-                tokenHasher.hash(token),
-                Instant.now().plusSeconds(36 * 60 * 60)));
-        String url = publicUrl(menu, token);
-        List<MenuItem> items = menuItemRepository.findByMenuIdOrderByCategoryAscIdAsc(menu.getId());
-        String text = buildShareText(menu, items, url);
-        return new ShareMessageResponse(link.getId(), url, text);
-    }
-
-    private String publicUrl(Menu menu, String token) {
+    private String publicUrl(Menu menu) {
         if (menu.getScope() == MenuScope.GLOBAL) {
-            return publicBaseUrl + "/m/global/" + menu.getMenuDate() + "?t=" + token;
+            return publicBaseUrl + "/m/global/" + menu.getMenuDate();
         }
-        return publicBaseUrl + "/m/" + menu.getCompany().getSlug() + "/" + menu.getMenuDate() + "?t=" + token;
+        return publicBaseUrl + "/m/" + menu.getCompany().getSlug() + "/" + menu.getMenuDate();
     }
 
     private String buildShareText(Menu menu, List<MenuItem> items, String url) {
@@ -562,19 +503,5 @@ public class MenuService {
 
     private String menuLabel(Menu menu) {
         return menu.getScope() == MenuScope.GLOBAL ? "global menu" : menu.getCompany().getName();
-    }
-
-    public record PublicMenuAccess(
-            Menu menu,
-            MenuPublicLink link,
-            Company company
-    ) {
-    }
-
-    public record GlobalMenuAccess(
-            Menu menu,
-            MenuPublicLink link,
-            Company company
-    ) {
     }
 }

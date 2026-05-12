@@ -79,19 +79,10 @@ public class MenuController {
 		return ApiResponse.ok("Mensaje para compartir obtenido", menuService.shareMessage(SecurityUtils.currentUser(), id));
 	}
 
-	@GetMapping("/public/menus/{companySlug}/{date}")
-	ApiResponse<PublicMenuResponse> publicMenu(
-			@PathVariable String companySlug,
-			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-			@RequestParam("t") String token) {
-		return ApiResponse.ok("Menu publico obtenido", menuService.getPublicMenu(companySlug, date, token));
-	}
-
-	@GetMapping("/employee/menus/global/{date}")
-	ApiResponse<PublicMenuResponse> employeeGlobalMenu(
-			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-			@RequestParam("t") String token) {
-		return ApiResponse.ok("Menu global obtenido", menuService.getEmployeeGlobalMenu(SecurityUtils.currentUser(), date, token));
+	@GetMapping("/employee/menus/{date}")
+	ApiResponse<PublicMenuResponse> employeeMenu(
+			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+		return ApiResponse.ok("Menu obtenido", menuService.getEmployeeMenu(SecurityUtils.currentUser(), date));
 	}
 
 }

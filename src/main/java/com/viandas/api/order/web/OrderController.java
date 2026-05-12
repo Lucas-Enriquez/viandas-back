@@ -36,36 +36,17 @@ public class OrderController {
 		this.orderService = orderService;
 	}
 
-	@PostMapping("/public/menus/{companySlug}/{date}/orders")
-	ApiResponse<OrderResponse> createPublicOrder(
-			@PathVariable String companySlug,
+	@PostMapping("/employee/menus/{date}/orders")
+	ApiResponse<OrderResponse> createEmployeeOrder(
 			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-			@RequestParam("t") String token,
 			@Valid @RequestBody CreateOrderRequest request) {
-		return ApiResponse.ok("Pedido creado", orderService.createPublicOrder(SecurityUtils.currentUser(), companySlug, date, token, request));
+		return ApiResponse.ok("Pedido creado", orderService.createEmployeeOrder(SecurityUtils.currentUser(), date, request));
 	}
 
-	@GetMapping("/public/menus/{companySlug}/{date}/orders/current")
-	ApiResponse<CurrentOrderResponse> currentPublicOrder(
-			@PathVariable String companySlug,
-			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-			@RequestParam("t") String token) {
-		return ApiResponse.ok("Pedido actual obtenido", orderService.currentPublicOrder(SecurityUtils.currentUser(), companySlug, date, token));
-	}
-
-	@PostMapping("/employee/menus/global/{date}/orders")
-	ApiResponse<OrderResponse> createEmployeeGlobalOrder(
-			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-			@RequestParam("t") String token,
-			@Valid @RequestBody CreateOrderRequest request) {
-		return ApiResponse.ok("Pedido creado", orderService.createEmployeeGlobalOrder(SecurityUtils.currentUser(), date, token, request));
-	}
-
-	@GetMapping("/employee/menus/global/{date}/orders/current")
-	ApiResponse<CurrentOrderResponse> currentEmployeeGlobalOrder(
-			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-			@RequestParam("t") String token) {
-		return ApiResponse.ok("Pedido actual obtenido", orderService.currentEmployeeGlobalOrder(SecurityUtils.currentUser(), date, token));
+	@GetMapping("/employee/menus/{date}/orders/current")
+	ApiResponse<CurrentOrderResponse> currentEmployeeOrder(
+			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+		return ApiResponse.ok("Pedido actual obtenido", orderService.currentEmployeeOrder(SecurityUtils.currentUser(), date));
 	}
 
 	@GetMapping("/orders/today")

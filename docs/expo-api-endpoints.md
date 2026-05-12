@@ -52,7 +52,7 @@ Formatos:
 Roles:
 
 ```ts
-type UserRole = "COOK" | "EMPLOYEE" | "CUSTOMER";
+type UserRole = "COOK" | "EMPLOYEE";
 type MenuScope = "COMPANY" | "GLOBAL";
 type MenuStatus = "DRAFT" | "PUBLISHED";
 type MenuItemCategory = "PLATO" | "MINUTA" | "ENSALADA";
@@ -216,8 +216,6 @@ Codigos comunes:
 
 Publico. Login con email/password para `COOK` y `EMPLOYEE`.
 
-No usar para `CUSTOMER`; customer entra por Google.
-
 Request:
 
 ```json
@@ -247,25 +245,6 @@ Response `ApiResponse<AuthResponse>`:
   "meta": null
 }
 ```
-
-### POST `/auth/google`
-
-Publico. Login/registro de `CUSTOMER` con Google.
-
-Request:
-
-```json
-{
-  "idToken": "google-id-token"
-}
-```
-
-Response: `ApiResponse<AuthResponse>`.
-
-Reglas:
-
-- Crea `CUSTOMER` si no existe.
-- Si el email existe para `COOK` o `EMPLOYEE`, responde `409`.
 
 ### POST `/auth/refresh`
 
@@ -362,7 +341,7 @@ Response `ApiResponse<UserContextResponse>`:
 Reglas:
 
 - `EMPLOYEE`: `company` viene desde `CompanyMembership`.
-- `COOK` y `CUSTOMER`: `company` es `null`.
+- `COOK`: `company` es `null`.
 - Si `EMPLOYEE` no tiene empresa, responde error.
 - Si `EMPLOYEE` tuviera mas de una empresa, responde `409`.
 
@@ -619,7 +598,6 @@ Reglas:
 
 - Si `maxUses` se alcanza, la invitacion queda inactiva.
 - Si el email ya existe, responde `409`.
-- No convierte `CUSTOMER` a `EMPLOYEE`.
 
 ## Menus
 
@@ -708,7 +686,6 @@ Que se copia:
 Que NO se copia:
 
 - Status (siempre `DRAFT`).
-- Links publicos.
 - Pedidos.
 
 Errores de negocio:
@@ -742,102 +719,52 @@ Reglas:
 
 ### PATCH `/menus/{id}/publish`
 
-Auth `COOK`. Publica menu y genera link publico.
+Auth `COOK`. Publica el menu.
 
 Response:
 
 ```ts
 type ShareMessageResponse = {
-  publicLinkId: string;
-  publicUrl: string;
-  whatsappText: string;
+  publicUrl: string;    // deep link a la app: {base}/m/{scope}/{date}
+  whatsappText: string; // texto listo para pegar en WhatsApp
 };
 ```
 
-Links generados:
+URLs generadas:
 
-| Scope | URL publica |
+| Scope | URL |
 |---|---|
-| `COMPANY` | `{publicBaseUrl}/m/{companySlug}/{date}?t={token}` |
-| `GLOBAL` | `{publicBaseUrl}/m/global/{date}?t={token}` |
+| `COMPANY` | `{publicBaseUrl}/m/{companySlug}/{date}` |
+| `GLOBAL` | `{publicBaseUrl}/m/global/{date}` |
 
-Para consumir desde API:
-
-| Scope | Endpoint API |
-|---|---|
-| `COMPANY` | `GET /public/menus/{companySlug}/{date}?t={token}` |
-| `GLOBAL` | `GET /employee/menus/global/{date}?t={token}` |
+El link no lleva token. El empleado que lo abre debe estar logueado en la app.
 
 ### GET `/menus/{id}/share-message`
 
-Auth `COOK`. Devuelve el mensaje/link de un menu ya publicado.
+Auth `COOK`. Devuelve el mensaje del menu publicado (mismo formato que `publish`).
 
 Response: `ApiResponse<ShareMessageResponse>`.
 
 Si el menu no esta publicado, responde `409`.
 
-### GET `/public/menus/{companySlug}/{date}?t={token}`
+### GET `/employee/menus/{date}`
 
-Publico. Obtiene menu publicado por empresa.
-
-Response: `ApiResponse<PublicMenuResponse>`.
-
-Uso:
-
-- Pantalla de menu por link de empresa.
-- El menu puede verse sin auth.
-- Para pedir, el usuario debe estar autenticado como `CUSTOMER`.
-
-### GET `/employee/menus/global/{date}?t={token}`
-
-Auth `EMPLOYEE`. Obtiene menu global publicado.
+Auth `EMPLOYEE`. Obtiene el menu publicado de la empresa del empleado para esa fecha.
 
 Response: `ApiResponse<PublicMenuResponse>`.
 
 Reglas:
 
-- El empleado debe pertenecer a una empresa.
-- La empresa del empleado debe estar asignada al menu global.
+- El empleado debe pertenecer a una empresa (via `CompanyMembership`).
+- El backend resuelve tanto menus `COMPANY` como `GLOBAL` asignados a la empresa del empleado.
 - Los items se filtran por `availableCompanyIds`.
+- Si no hay menu publicado para esa fecha, responde `404`.
 
 ## Orders
 
-### POST `/public/menus/{companySlug}/{date}/orders?t={token}`
+### POST `/employee/menus/{date}/orders`
 
-Auth `CUSTOMER`. Crea pedido sobre menu por empresa.
-
-Request:
-
-```json
-{
-  "items": [
-    {
-      "menuItemId": "uuid-item",
-      "quantity": 1,
-      "comment": "Sin sal"
-    }
-  ]
-}
-```
-
-Response: `ApiResponse<OrderResponse>`.
-
-Reglas:
-
-- Solo `CUSTOMER`.
-- Un customer puede tener un solo pedido activo por menu.
-- Si el horario de cierre paso, responde `409`.
-- Si no hay stock suficiente, responde `409`.
-
-### GET `/public/menus/{companySlug}/{date}/orders/current?t={token}`
-
-Auth `CUSTOMER`. Obtiene el pedido actual del customer para ese menu.
-
-Response: `ApiResponse<CurrentOrderResponse>`.
-
-### POST `/employee/menus/global/{date}/orders?t={token}`
-
-Auth `EMPLOYEE`. Crea pedido sobre menu global.
+Auth `EMPLOYEE`. Crea pedido para el menu del dia.
 
 Request:
 
@@ -857,13 +784,15 @@ Response: `ApiResponse<OrderResponse>`.
 
 Reglas:
 
-- El backend resuelve `companyId` desde `CompanyMembership`.
+- El backend resuelve menu y empresa desde la membresia del empleado.
 - Un empleado puede tener un solo pedido activo por menu.
+- Si el horario de cierre paso, responde `409`.
+- Si no hay stock suficiente, responde `409`.
 - El item debe estar disponible para la empresa del empleado.
 
-### GET `/employee/menus/global/{date}/orders/current?t={token}`
+### GET `/employee/menus/{date}/orders/current`
 
-Auth `EMPLOYEE`. Obtiene pedido actual del empleado para ese menu global.
+Auth `EMPLOYEE`. Obtiene el pedido actual del empleado para ese dia.
 
 Response: `ApiResponse<CurrentOrderResponse>`.
 
@@ -1031,7 +960,7 @@ Response: `ApiResponse<DeliverySessionResponse>`.
 
 ### POST `/me/notification-devices`
 
-Auth requerida para cualquier rol. Registra/actualiza el token push del dispositivo.
+Auth requerida. Registra/actualiza el token push del dispositivo.
 
 Request:
 
@@ -1093,25 +1022,17 @@ Responde `ShareMessageResponse`:
 
 ```ts
 {
-  publicLinkId: string;
-  publicUrl: string;    // link para empleados: {base}/m/global/{date}?t={token}
+  publicUrl: string;    // deep link: {base}/m/global/{date}
   whatsappText: string; // texto listo para pegar en WhatsApp
 }
 ```
 
-**Guardar el `publicUrl` y el `whatsappText`** en el estado local para el paso siguiente.
+**Guardar el `whatsappText`** para el paso siguiente.
 
 **4. Enviar a cada grupo de WhatsApp**
 
-El backend genera el texto una sola vez por publicacion.
-El front muestra una pantalla con la lista de las empresas asignadas al menu y un boton
-"Copiar mensaje" por empresa. Cada empresa tiene su propio share message porque el link
-incluye el `companySlug`:
-
-- Menu `GLOBAL`: todos comparten la misma URL (`/m/global/{date}?t=...`).
-  El cook copia el mismo texto para todos los grupos.
-- Menu `COMPANY`: cada empresa tiene URL distinta (`/m/{slug}/{date}?t=...`).
-  Si necesita links por empresa, usar `GET /menus/{id}/share-message` por cada una.
+El texto generado incluye los items del menu y el link a la app (sin token).
+El empleado que toca el link debe estar logueado — la app lo lleva directo al menu del dia.
 
 Para obtener el mensaje en cualquier momento despues de publicar:
 
@@ -1167,7 +1088,7 @@ Accion destructiva e irreversible. Elimina la empresa y todo lo asociado: pedido
 
 **Importante:** la comprobacion del texto "eliminar" es responsabilidad del front. El backend no valida ninguna confirmacion; simplemente ejecuta el borrado si el cook es el dueno de la empresa.
 
-### Flujo EMPLOYEE Con Link Global
+### Flujo EMPLOYEE (registro)
 
 El empleado recibe el link de su empresa (guardado por el cook en el setup inicial).
 El link tiene la forma: `{publicBaseUrl}/global-invitation/{token}`.
@@ -1178,14 +1099,20 @@ El link tiene la forma: `{publicBaseUrl}/global-invitation/{token}`.
 4. Registro: `POST /global-invitation/{token}/accept`.
 5. Guardar `accessToken` y `refreshToken`.
 6. Contexto: `GET /me/context` — confirma empresa asignada.
-7. El cook le comparte el link del menu del dia: `/m/global/{date}?t={menuToken}`.
-8. Menu: `GET /employee/menus/global/{date}?t={menuToken}`.
-9. Pedido actual: `GET /employee/menus/global/{date}/orders/current?t={menuToken}`.
-10. Si puede pedir: `POST /employee/menus/global/{date}/orders?t={menuToken}`.
-11. Registrar push: `POST /me/notification-devices`.
+7. Registrar push: `POST /me/notification-devices`.
 
-Nota: el link de registro (`/global-invitation/{token}`) y el link del menu (`/m/global/...`)
-son dos links distintos con tokens distintos. El primero es para registrarse, el segundo es diario.
+### Flujo EMPLOYEE (ver menu y pedir)
+
+Una vez registrado, el empleado puede ver el menu del dia directamente desde la app, sin necesitar ningun link con token.
+
+1. Menu del dia: `GET /employee/menus/{date}`.
+   - `date` = fecha de hoy en formato `YYYY-MM-DD`.
+   - Responde `404` si el cook no publico menu para ese dia.
+2. Pedido actual: `GET /employee/menus/{date}/orders/current`.
+3. Si `canOrder = true`: `POST /employee/menus/{date}/orders`.
+
+El cook puede seguir compartiendo el `whatsappText` por WhatsApp como aviso, pero el link
+incluido es un deep link a la app — no lleva token ni requiere nada especial para abrirlo.
 
 ### Flujo EMPLOYEE Con Invitacion Individual
 
@@ -1194,17 +1121,7 @@ son dos links distintos con tokens distintos. El primero es para registrarse, el
 3. Registro: `POST /invitations/{token}/accept`.
 4. Guardar tokens.
 5. Contexto: `GET /me/context`.
-6. Continuar con flujo de menu global cuando el cook comparta el link diario.
-
-### Flujo CUSTOMER
-
-1. Login: `POST /auth/google`.
-2. Guardar tokens.
-3. Abrir link de menu empresa `/m/{companySlug}/{date}?t={token}`.
-4. Menu: `GET /public/menus/{companySlug}/{date}?t={token}`.
-5. Pedido actual: `GET /public/menus/{companySlug}/{date}/orders/current?t={token}`.
-6. Si puede pedir: `POST /public/menus/{companySlug}/{date}/orders?t={token}`.
-7. Registrar push: `POST /me/notification-devices`.
+6. Continuar con flujo de menu (ver seccion anterior).
 
 ## Pantallas Minimas Para Expo
 
@@ -1212,7 +1129,6 @@ son dos links distintos con tokens distintos. El primero es para registrarse, el
 |---|---|---|
 | Todos | Splash/session restore | `/auth/refresh`, `/me/context` |
 | COOK/EMPLOYEE | Login email/password | `/auth/login` |
-| CUSTOMER | Login Google | `/auth/google` |
 | EMPLOYEE | Preview invitacion individual | `GET /invitations/{token}` |
 | EMPLOYEE | Preview invitacion global | `GET /global-invitation/{token}` |
 | EMPLOYEE | Registro por invitacion | `POST /invitations/{token}/accept`, `POST /global-invitation/{token}/accept` |
@@ -1225,19 +1141,16 @@ son dos links distintos con tokens distintos. El primero es para registrarse, el
 | COOK | Pedidos de hoy | `GET /orders/today`, `GET /orders/stream` |
 | COOK | Estado pedido | `PATCH /orders/{id}/preparing`, `/out-for-delivery`, `/delivered`, `/cancel` |
 | COOK | Reparto | `/delivery-sessions` |
-| EMPLOYEE | Menu global | `GET /employee/menus/global/{date}` |
-| EMPLOYEE | Pedido global | `GET/POST /employee/menus/global/{date}/orders...` |
-| CUSTOMER | Menu empresa | `GET /public/menus/{companySlug}/{date}` |
-| CUSTOMER | Pedido empresa | `GET/POST /public/menus/{companySlug}/{date}/orders...` |
+| EMPLOYEE | Menu del dia | `GET /employee/menus/{date}` |
+| EMPLOYEE | Pedido del dia | `GET /employee/menus/{date}/orders/current`, `POST /employee/menus/{date}/orders` |
 
 ## Notas De Implementacion Para El Front
 
 - Guardar `accessToken` y `refreshToken` en storage seguro.
 - El `accessToken` dura poco; no asumir que una sesion rota implica login manual.
-- Nunca mandar `companyId` desde el front para empleado en pedidos globales: lo resuelve el backend.
-- Para links compartidos, parsear siempre `date` y `t` desde la URL.
-- Para menus globales, el usuario debe estar logueado como `EMPLOYEE` antes de pedir el menu.
-- Para menus por empresa, el usuario puede ver el menu sin login, pero para pedir debe estar logueado como `CUSTOMER`.
+- Nunca mandar `companyId` desde el front para empleado en pedidos: lo resuelve el backend desde la membresia.
+- Para navegar al menu del dia desde el link de WhatsApp, parsear solo `date` desde la URL (ya no hay `t` token).
+- El empleado debe estar logueado antes de acceder al menu — no hay vista publica sin auth.
 - Todos los identificadores son UUID string.
 - El token de invitacion global (`GlobalInvitationResponse.token`) solo se expone una vez al crearlo.
   Guardarlo junto con el `link`. No hay endpoint para recuperarlo despues — solo se puede regenerar

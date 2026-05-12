@@ -44,7 +44,6 @@ public class SecurityConfig {
 								writeError(objectMapper, request, response, HttpStatus.FORBIDDEN, "Access denied")))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/auth/**", "/internal/bootstrap/**", "/invitations/**").permitAll()
-						.requestMatchers(HttpMethod.GET, "/public/menus/*/*").permitAll()
 						.requestMatchers(HttpMethod.GET, "/global-invitation/*").permitAll()
 						.requestMatchers(HttpMethod.POST, "/global-invitation/*/accept").permitAll()
 						.anyRequest().authenticated())
