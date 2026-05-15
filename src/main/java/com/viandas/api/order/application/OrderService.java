@@ -25,6 +25,7 @@ import com.viandas.api.order.domain.OrderStatus;
 import com.viandas.api.order.dto.request.CreateOrderRequest;
 import com.viandas.api.order.dto.request.OrderItemRequest;
 import com.viandas.api.order.dto.request.StockBroadcastRequest;
+import com.viandas.api.order.dto.request.UpdateOrderItemCommentRequest;
 import com.viandas.api.order.dto.response.CurrentOrderResponse;
 import com.viandas.api.order.dto.response.OrderItemResponse;
 import com.viandas.api.order.dto.response.OrderResponse;
@@ -160,6 +161,56 @@ public class OrderService {
 		OrderResponse response = toResponse(order, signal);
 		orderEventBroadcaster.publish(order.getCompany().getId(), "order.updated", response);
 		notifyOrderOwner(order, status, signal);
+		return response;
+	}
+
+	@Transactional
+	public OrderResponse cancelEmployeeOrder(CurrentUser currentUser, LocalDate date) {
+		Menu menu = menuService.requireEmployeeMenuAccess(currentUser, date).menu();
+		if (!canOrder(menu)) throw ApiException.conflict("Orders are closed for this menu");
+
+		CustomerOrder order = orderRepository
+				.findFirstByMenuIdAndEmployeeIdAndStatusNotOrderByCreatedAtDesc(
+						menu.getId(), currentUser.userId(), OrderStatus.CANCELLED)
+				.orElseThrow(() -> ApiException.notFound("No active order found for this menu"));
+
+		for (OrderItem item : order.getItems()) {
+			MenuItem menuItem = item.getMenuItem();
+			if (menuItem.getRemainingStock() != null) {
+				menuItem.setRemainingStock(menuItem.getRemainingStock() + item.getQuantity());
+			}
+		}
+
+		order.setStatus(OrderStatus.CANCELLED);
+		order.setUpdatedAt(Instant.now());
+
+		DeliveryPublicSignal signal = deliverySignal(order.getMenu(), order.getCompany());
+		OrderResponse response = toResponse(order, signal);
+		orderEventBroadcaster.publish(order.getCompany().getId(), "order.updated", response);
+		return response;
+	}
+
+	@Transactional
+	public OrderResponse updateEmployeeOrderItemComment(CurrentUser currentUser, LocalDate date, UUID itemId, UpdateOrderItemCommentRequest request) {
+		Menu menu = menuService.requireEmployeeMenuAccess(currentUser, date).menu();
+		if (!canOrder(menu)) throw ApiException.conflict("Orders are closed for this menu");
+
+		CustomerOrder order = orderRepository
+				.findFirstByMenuIdAndEmployeeIdAndStatusNotOrderByCreatedAtDesc(
+						menu.getId(), currentUser.userId(), OrderStatus.CANCELLED)
+				.orElseThrow(() -> ApiException.notFound("No active order found for this menu"));
+
+		OrderItem item = order.getItems().stream()
+				.filter(i -> i.getId().equals(itemId))
+				.findFirst()
+				.orElseThrow(() -> ApiException.notFound("Order item not found"));
+
+		item.setComment(request.comment());
+		order.setUpdatedAt(Instant.now());
+
+		DeliveryPublicSignal signal = deliverySignal(order.getMenu(), order.getCompany());
+		OrderResponse response = toResponse(order, signal);
+		orderEventBroadcaster.publish(order.getCompany().getId(), "order.updated", response);
 		return response;
 	}
 

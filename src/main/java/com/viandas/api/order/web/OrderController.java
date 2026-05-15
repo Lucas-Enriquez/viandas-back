@@ -6,6 +6,7 @@ import com.viandas.api.order.domain.*;
 import com.viandas.api.order.application.*;
 import com.viandas.api.order.dto.request.CreateOrderRequest;
 import com.viandas.api.order.dto.request.StockBroadcastRequest;
+import com.viandas.api.order.dto.request.UpdateOrderItemCommentRequest;
 import com.viandas.api.order.dto.response.CurrentOrderResponse;
 import com.viandas.api.order.dto.response.OrderResponse;
 import com.viandas.api.order.dto.response.StockBroadcastResponse;
@@ -15,6 +16,7 @@ import java.util.List;
 
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -47,6 +49,20 @@ public class OrderController {
 	ApiResponse<CurrentOrderResponse> currentEmployeeOrder(
 			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
 		return ApiResponse.ok("Pedido actual obtenido", orderService.currentEmployeeOrder(SecurityUtils.currentUser(), date));
+	}
+
+	@DeleteMapping("/employee/menus/{date}/orders/current")
+	ApiResponse<OrderResponse> cancelEmployeeOrder(
+			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+		return ApiResponse.ok("Pedido cancelado", orderService.cancelEmployeeOrder(SecurityUtils.currentUser(), date));
+	}
+
+	@PatchMapping("/employee/menus/{date}/orders/current/items/{itemId}")
+	ApiResponse<OrderResponse> updateOrderItemComment(
+			@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+			@PathVariable UUID itemId,
+			@Valid @RequestBody UpdateOrderItemCommentRequest request) {
+		return ApiResponse.ok("Comentario actualizado", orderService.updateEmployeeOrderItemComment(SecurityUtils.currentUser(), date, itemId, request));
 	}
 
 	@GetMapping("/orders/today")
