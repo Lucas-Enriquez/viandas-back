@@ -71,6 +71,15 @@ public class CustomerOrder {
 	@Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
 	private BigDecimal totalAmount = BigDecimal.ZERO;
 
+	@Column(nullable = false)
+	private boolean paid = false;
+
+	@Column(name = "paid_at")
+	private Instant paidAt;
+
+	@Column(name = "payment_note", length = 280)
+	private String paymentNote;
+
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt = Instant.now();
 

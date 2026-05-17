@@ -23,6 +23,7 @@ import com.viandas.api.order.domain.OrderItem;
 import com.viandas.api.order.domain.OrderSource;
 import com.viandas.api.order.domain.OrderStatus;
 import com.viandas.api.order.dto.request.CreateOrderRequest;
+import com.viandas.api.order.dto.request.MarkPaidRequest;
 import com.viandas.api.order.dto.request.OrderItemRequest;
 import com.viandas.api.order.dto.request.StockBroadcastRequest;
 import com.viandas.api.order.dto.request.UpdateOrderItemCommentRequest;
@@ -161,6 +162,22 @@ public class OrderService {
 		OrderResponse response = toResponse(order, signal);
 		orderEventBroadcaster.publish(order.getCompany().getId(), "order.updated", response);
 		notifyOrderOwner(order, status, signal);
+		return response;
+	}
+
+	@Transactional
+	public OrderResponse markPaid(CurrentUser currentUser, UUID orderId, MarkPaidRequest request) {
+		requireCook(currentUser);
+		CustomerOrder order = orderRepository.findByIdAndCompanyCookId(orderId, currentUser.userId())
+				.orElseThrow(() -> ApiException.notFound("Order not found"));
+		Instant now = Instant.now();
+		order.setPaid(Boolean.TRUE.equals(request.paid()));
+		order.setPaidAt(order.isPaid() ? now : null);
+		order.setPaymentNote(request.note());
+		order.setUpdatedAt(now);
+		DeliveryPublicSignal signal = deliverySignal(order.getMenu(), order.getCompany());
+		OrderResponse response = toResponse(order, signal);
+		orderEventBroadcaster.publish(order.getCompany().getId(), "order.updated", response);
 		return response;
 	}
 
@@ -364,6 +381,9 @@ public class OrderService {
 				effectiveSignal,
 				order.getCustomerNameSnapshot(),
 				order.getTotalAmount(),
+				order.isPaid(),
+				order.getPaidAt(),
+				order.getPaymentNote(),
 				order.getCreatedAt(),
 				items);
 	}

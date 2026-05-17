@@ -1,7 +1,9 @@
 package com.viandas.api.auth.security;
 
-import java.time.Instant;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +12,7 @@ import com.viandas.api.shared.ApiError;
 import com.viandas.api.shared.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -22,6 +25,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import tools.jackson.databind.ObjectMapper;
 
 @Configuration
@@ -32,9 +38,11 @@ public class SecurityConfig {
 			HttpSecurity http,
 			JwtAuthenticationFilter jwtAuthenticationFilter,
 			AuthRateLimitFilter authRateLimitFilter,
+			CorsConfigurationSource corsConfigurationSource,
 			ObjectMapper objectMapper
 	) throws Exception {
 		return http
+				.cors(cors -> cors.configurationSource(corsConfigurationSource))
 				.csrf(AbstractHttpConfigurer::disable)
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.exceptionHandling(exceptions -> exceptions
@@ -50,6 +58,24 @@ public class SecurityConfig {
 				.addFilterBefore(authRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 				.build();
+	}
+
+	@Bean
+	CorsConfigurationSource corsConfigurationSource(
+			@Value("${viandas.cors.allowed-origins}") String allowedOrigins) {
+		CorsConfiguration config = new CorsConfiguration();
+		config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+				.map(String::trim)
+				.filter(origin -> !origin.isEmpty())
+				.toList());
+		config.setAllowedMethods(List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"));
+		config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+		config.setExposedHeaders(List.of("Authorization"));
+		config.setAllowCredentials(true);
+		config.setMaxAge(Duration.ofHours(1));
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/**", config);
+		return source;
 	}
 
 	@Bean

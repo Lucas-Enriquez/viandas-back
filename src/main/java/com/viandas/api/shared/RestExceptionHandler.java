@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +25,8 @@ import tools.jackson.databind.exc.InvalidFormatException;
 
 @RestControllerAdvice
 public class RestExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(RestExceptionHandler.class);
 
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ApiResponse<Void>> handleApiException(
@@ -132,6 +136,7 @@ public class RestExceptionHandler {
             Exception exception,
             HttpServletRequest request
     ) {
+        log.error("Unhandled error at {} {}", request.getMethod(), request.getRequestURI(), exception);
         String message = "Unexpected error";
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error(

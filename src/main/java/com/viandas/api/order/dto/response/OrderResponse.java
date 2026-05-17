@@ -17,6 +17,9 @@ public record OrderResponse(
 		DeliveryPublicSignal deliverySignal,
 		String customerName,
 		BigDecimal totalAmount,
+		boolean paid,
+		Instant paidAt,
+		String paymentNote,
 		Instant createdAt,
 		List<OrderItemResponse> items) {
 }

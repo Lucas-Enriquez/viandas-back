@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <springProfile name="dev">
+        <include resource="org/springframework/boot/logging/logback/base.xml"/>
+        <logger name="com.viandas" level="DEBUG"/>
+    </springProfile>
+
+    <springProfile name="!dev">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdc>true</includeMdc>
+                <includeContext>false</includeContext>
+                <customFields>{"app":"viandas-api"}</customFields>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+        <logger name="com.viandas" level="INFO"/>
+    </springProfile>
+
+</configuration>

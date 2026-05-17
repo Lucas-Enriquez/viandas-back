@@ -119,6 +119,11 @@ public class DeliveryService {
 				.orElseThrow(() -> ApiException.notFound("Delivery session not found"));
 		session.setStatus(DeliverySessionStatus.FINISHED);
 		session.setFinishedAt(Instant.now());
+		updateOpenOrders(
+				session.getMenu(),
+				session.getCompany(),
+				OrderStatus.DELIVERED,
+				List.of(OrderStatus.RECEIVED, OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.NEARBY));
 		DeliverySessionResponse response = toResponse(session, DeliveryPublicSignal.DELIVERED);
 		orderEventBroadcaster.publish(session.getCompany().getId(), "delivery.finished", response);
 		return response;
@@ -149,21 +154,37 @@ public class DeliveryService {
 		return meters <= nearbyThresholdMeters ? DeliveryPublicSignal.NEARBY : DeliveryPublicSignal.OUT_FOR_DELIVERY;
 	}
 
-	private void updateOpenOrders(Menu menu, Company company, OrderStatus status) {
-		List<OrderStatus> openStatuses = List.of(OrderStatus.RECEIVED, OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY);
-		List<CustomerOrder> orders = orderRepository.findByMenuIdAndCompanyIdAndStatusIn(menu.getId(), company.getId(), openStatuses);
+	private void updateOpenOrders(Menu menu, Company company, OrderStatus targetStatus) {
+		updateOpenOrders(
+				menu,
+				company,
+				targetStatus,
+				List.of(OrderStatus.RECEIVED, OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY));
+	}
+
+	private void updateOpenOrders(Menu menu, Company company, OrderStatus targetStatus, List<OrderStatus> fromStatuses) {
+		List<CustomerOrder> orders = orderRepository.findByMenuIdAndCompanyIdAndStatusIn(menu.getId(), company.getId(), fromStatuses);
 		for (CustomerOrder order : orders) {
-			order.setStatus(status);
+			order.setStatus(targetStatus);
 			order.setUpdatedAt(Instant.now());
 			User orderOwner = order.getCustomer() != null ? order.getCustomer() : order.getEmployee();
 			if (orderOwner != null) {
 				notificationService.notifyUser(
 						orderOwner.getId(),
 						"Pedido actualizado",
-						status == OrderStatus.NEARBY ? "Esta cerca." : "Tu pedido ya salio.",
+						messageFor(targetStatus),
 						Map.of("orderId", order.getId().toString()));
 			}
 		}
+	}
+
+	private static String messageFor(OrderStatus status) {
+		return switch (status) {
+			case NEARBY -> "Esta cerca.";
+			case OUT_FOR_DELIVERY -> "Tu pedido ya salio.";
+			case DELIVERED -> "Tu pedido fue entregado.";
+			default -> "Pedido actualizado.";
+		};
 	}
 
 	private static BigDecimal roundCoordinate(BigDecimal coordinate) {

@@ -5,6 +5,7 @@ import java.util.UUID;
 import com.viandas.api.order.domain.*;
 import com.viandas.api.order.application.*;
 import com.viandas.api.order.dto.request.CreateOrderRequest;
+import com.viandas.api.order.dto.request.MarkPaidRequest;
 import com.viandas.api.order.dto.request.StockBroadcastRequest;
 import com.viandas.api.order.dto.request.UpdateOrderItemCommentRequest;
 import com.viandas.api.order.dto.response.CurrentOrderResponse;
@@ -93,6 +94,11 @@ public class OrderController {
 	@PatchMapping("/orders/{id}/cancel")
 	ApiResponse<OrderResponse> cancel(@PathVariable UUID id) {
 		return ApiResponse.ok("Pedido cancelado", orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.CANCELLED));
+	}
+
+	@PatchMapping("/orders/{id}/paid")
+	ApiResponse<OrderResponse> paid(@PathVariable UUID id, @Valid @RequestBody MarkPaidRequest request) {
+		return ApiResponse.ok("Estado de pago actualizado", orderService.markPaid(SecurityUtils.currentUser(), id, request));
 	}
 
 	@PostMapping("/stock-broadcast")

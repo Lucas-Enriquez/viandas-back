@@ -325,7 +325,7 @@ public class MenuService {
         }
         Company company = requireEmployeeCompany(currentUser);
         Menu menu = menuRepository.findPublishedByCompanyAndDate(company.getId(), date)
-                .orElseThrow(() -> ApiException.notFound("No hay menú publicado para tu empresa en esa fecha"));
+                .orElseThrow(() -> ApiException.notFound("No hay menú publicado aún, intenta más tarde"));
         return new EmployeeMenuAccess(menu, company);
     }
 
