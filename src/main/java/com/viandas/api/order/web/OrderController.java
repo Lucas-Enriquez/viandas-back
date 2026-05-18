@@ -81,6 +81,11 @@ public class OrderController {
 		return ApiResponse.ok("Pedido marcado como en preparacion", orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.PREPARING));
 	}
 
+	@PatchMapping("/menus/{menuId}/orders/preparing")
+	ApiResponse<List<OrderResponse>> markMenuOrdersPreparing(@PathVariable UUID menuId) {
+		return ApiResponse.ok("Pedidos marcados como en preparacion", orderService.markMenuOrdersPreparing(SecurityUtils.currentUser(), menuId));
+	}
+
 	@PatchMapping("/orders/{id}/out-for-delivery")
 	ApiResponse<OrderResponse> outForDelivery(@PathVariable UUID id) {
 		return ApiResponse.ok("Pedido marcado como en reparto", orderService.markStatus(SecurityUtils.currentUser(), id, OrderStatus.OUT_FOR_DELIVERY));

@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -30,7 +31,7 @@ public class OrderEventBroadcaster {
 	}
 
 	private void register(UUID companyId, SseEmitter emitter) {
-		emittersByCompany.computeIfAbsent(companyId, ignored -> new ArrayList<>()).add(emitter);
+		emittersByCompany.computeIfAbsent(companyId, ignored -> new CopyOnWriteArrayList<>()).add(emitter);
 		emitter.onCompletion(() -> remove(companyId, emitter));
 		emitter.onTimeout(() -> remove(companyId, emitter));
 		emitter.onError(error -> remove(companyId, emitter));

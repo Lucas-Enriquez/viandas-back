@@ -180,7 +180,7 @@ public class DeliveryService {
 
 	private static String messageFor(OrderStatus status) {
 		return switch (status) {
-			case NEARBY -> "Esta cerca.";
+			case NEARBY -> "Tu pedido se encuentra cerca.";
 			case OUT_FOR_DELIVERY -> "Tu pedido ya salio.";
 			case DELIVERED -> "Tu pedido fue entregado.";
 			default -> "Pedido actualizado.";

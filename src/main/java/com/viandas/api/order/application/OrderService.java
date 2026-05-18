@@ -166,6 +166,24 @@ public class OrderService {
 	}
 
 	@Transactional
+	public List<OrderResponse> markMenuOrdersPreparing(CurrentUser currentUser, UUID menuId) {
+		Menu menu = menuService.requireOwnedMenu(currentUser, menuId);
+		List<CustomerOrder> orders = orderRepository.findByMenuIdAndStatusIn(menu.getId(), List.of(OrderStatus.RECEIVED));
+		Instant now = Instant.now();
+		List<OrderResponse> responses = new ArrayList<>(orders.size());
+		for (CustomerOrder order : orders) {
+			order.setStatus(OrderStatus.PREPARING);
+			order.setUpdatedAt(now);
+			DeliveryPublicSignal signal = deliverySignal(order.getMenu(), order.getCompany());
+			OrderResponse response = toResponse(order, signal);
+			orderEventBroadcaster.publish(order.getCompany().getId(), "order.updated", response);
+			notifyOrderOwner(order, OrderStatus.PREPARING, signal);
+			responses.add(response);
+		}
+		return responses;
+	}
+
+	@Transactional
 	public OrderResponse markPaid(CurrentUser currentUser, UUID orderId, MarkPaidRequest request) {
 		requireCook(currentUser);
 		CustomerOrder order = orderRepository.findByIdAndCompanyCookId(orderId, currentUser.userId())

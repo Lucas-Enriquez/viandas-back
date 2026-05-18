@@ -5,9 +5,7 @@ import java.util.UUID;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 import com.viandas.api.company.domain.Company;
@@ -77,7 +75,7 @@ public class Menu {
 	private Instant updatedAt = Instant.now();
 
 	@OneToMany(mappedBy = "menu", cascade = CascadeType.ALL, orphanRemoval = true)
-	private List<MenuItem> items = new ArrayList<>();
+	private Set<MenuItem> items = new LinkedHashSet<>();
 
 	@ManyToMany
 	@JoinTable(

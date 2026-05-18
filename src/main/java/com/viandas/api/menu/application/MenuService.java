@@ -39,6 +39,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -284,6 +285,7 @@ public class MenuService {
         if (menu.getItems().isEmpty()) {
             throw ApiException.conflict("No se puede publicar un menú sin items");
         }
+        boolean firstPublish = menu.getPublishedAt() == null;
         menu.setStatus(MenuStatus.PUBLISHED);
         menu.setPublishedAt(Instant.now());
         menu.setUpdatedAt(Instant.now());
@@ -293,7 +295,31 @@ public class MenuService {
         String text = buildShareText(menu, items, url);
         notificationService.notifyUser(menu.getCook()
                 .getId(), "Menu published", "Menu published for " + menuLabel(menu), Map.of());
+        if (firstPublish) {
+            notifyEmployeesOfNewMenu(menu);
+        }
         return new ShareMessageResponse(url, text);
+    }
+
+    private void notifyEmployeesOfNewMenu(Menu menu) {
+        List<UUID> companyIds = menu.getScope() == MenuScope.GLOBAL
+                ? menu.getAssignedCompanies().stream().map(Company::getId).toList()
+                : List.of(menu.getCompany().getId());
+        if (companyIds.isEmpty()) {
+            return;
+        }
+        List<CompanyMembership> memberships = companyMembershipRepository.findEmployeesByCompanyIdIn(companyIds);
+        if (memberships.isEmpty()) {
+            return;
+        }
+        String title = "Menú disponible";
+        String body = "Ya podés pedir el menú del " + menu.getMenuDate();
+        Map<String, String> data = Map.of(
+                "menuId", menu.getId().toString(),
+                "menuDate", menu.getMenuDate().toString());
+        for (CompanyMembership membership : memberships) {
+            notificationService.notifyUser(membership.getUser().getId(), title, body, data);
+        }
     }
 
     @Transactional
@@ -426,7 +452,7 @@ public class MenuService {
         return format.format(price);
     }
 
-    private MenuResponse toMenuResponse(Menu menu, List<MenuItem> items) {
+    private MenuResponse toMenuResponse(Menu menu, Collection<MenuItem> items) {
         Company company = menu.getScope() == MenuScope.COMPANY ? menu.getCompany() : null;
         return new MenuResponse(
                 menu.getId(),

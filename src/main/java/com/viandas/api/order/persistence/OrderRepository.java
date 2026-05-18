@@ -24,5 +24,8 @@ public interface OrderRepository extends JpaRepository<CustomerOrder, UUID> {
 
 	List<CustomerOrder> findByMenuIdAndCompanyIdAndStatusIn(UUID menuId, UUID companyId, List<OrderStatus> statuses);
 
+	@EntityGraph(attributePaths = {"items", "items.menuItem", "menu", "company"})
+	List<CustomerOrder> findByMenuIdAndStatusIn(UUID menuId, List<OrderStatus> statuses);
+
 	boolean existsByMenuId(UUID id);
 }
