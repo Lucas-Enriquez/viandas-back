@@ -129,13 +129,13 @@ curl -s -X POST "http://localhost:8080/companies" \
   -H "Authorization: Bearer COOK_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Reino Ceramicos",
+    "name": "Acme",
     "address": "Av. Corrientes 1234, CABA",
     "notes": "Entrada por recepcion",
     "latitude": -34.6037,
     "longitude": -58.3816,
     "locationSource": "MANUAL",
-    "whatsappGroupLabel": "Grupo Reino Ceramicos"
+    "whatsappGroupLabel": "Grupo Acme"
   }'
 ```
 
@@ -143,7 +143,7 @@ Reemplaza `COOK_TOKEN` por el token real. La respuesta trae `id` y `slug`.
 
 ```text
 COMPANY_ID=<id de la empresa>
-COMPANY_SLUG=<slug de la empresa, por ejemplo reino-ceramicos>
+COMPANY_SLUG=<slug de la empresa, por ejemplo acme>
 ```
 
 Probar geocoding preview:
@@ -225,7 +225,7 @@ La respuesta trae:
 ```json
 {
   "publicLinkId": 1,
-  "publicUrl": "http://localhost:8080/m/reino-ceramicos/2026-04-29?t=<token>",
+  "publicUrl": "http://localhost:8080/m/acme/2026-04-29?t=<token>",
   "whatsappText": "..."
 }
 ```

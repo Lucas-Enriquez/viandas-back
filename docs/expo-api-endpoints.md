@@ -328,8 +328,8 @@ Response `ApiResponse<UserContextResponse>`:
     },
     "company": {
       "id": "uuid",
-      "name": "Reino Ceramicos S.A",
-      "slug": "reino-ceramicos-s-a"
+      "name": "Acme S.A",
+      "slug": "acme-s-a"
     }
   },
   "message": "Contexto obtenido",
@@ -363,13 +363,13 @@ Request:
 
 ```json
 {
-  "name": "Reino Ceramicos S.A",
+  "name": "Acme S.A",
   "address": "Av Agustin M Garcia 9501",
   "notes": "Entrada por Diego Palma a la izquierda",
   "latitude": -34.3921711,
   "longitude": -58.6627832,
   "locationSource": "MANUAL",
-  "whatsappGroupLabel": "Reino Caseritas"
+  "whatsappGroupLabel": "Grupo Acme"
 }
 ```
 
