@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.viandas.api.menu.domain.MenuScope;
 import com.viandas.api.menu.domain.MenuStatus;
 
@@ -15,6 +16,7 @@ public record MenuResponse(
 		String companyName,
 		MenuScope scope,
 		List<MenuCompanyResponse> companies,
+		@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
 		LocalDate date,
 		MenuStatus status,
 		LocalTime orderClosesAt,
