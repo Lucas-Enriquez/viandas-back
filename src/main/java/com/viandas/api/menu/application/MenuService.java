@@ -215,6 +215,12 @@ public class MenuService {
     }
 
     @Transactional(readOnly = true)
+    public MenuResponse get(CurrentUser currentUser, UUID menuId) {
+        Menu menu = requireOwnedMenu(currentUser, menuId);
+        return toMenuResponse(menu, menu.getItems());
+    }
+
+    @Transactional(readOnly = true)
     public List<MenuItemResponse> getMenuItems(CurrentUser currentUser, UUID menuId) {
         Menu menu = requireOwnedMenu(currentUser, menuId);
         return menu.getItems().stream()

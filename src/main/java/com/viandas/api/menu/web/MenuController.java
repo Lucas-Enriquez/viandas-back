@@ -37,6 +37,11 @@ public class MenuController {
 		return ApiResponse.ok("Menus obtenidos", menuService.list(SecurityUtils.currentUser(), companyId, date));
 	}
 
+	@GetMapping("/menus/{id}")
+	ApiResponse<MenuResponse> get(@PathVariable UUID id) {
+		return ApiResponse.ok("Menu obtenido", menuService.get(SecurityUtils.currentUser(), id));
+	}
+
 	@PostMapping("/menus")
 	ApiResponse<MenuResponse> create(@Valid @RequestBody CreateMenuRequest request) {
 		return ApiResponse.ok("Menu creado", menuService.create(SecurityUtils.currentUser(), request));

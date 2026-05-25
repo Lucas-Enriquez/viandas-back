@@ -614,6 +614,16 @@ Query params opcionales:
 
 Response: `ApiResponse<MenuResponse[]>`.
 
+### GET `/menus/{id}`
+
+Auth `COOK`. Devuelve el detalle de un menu propio (con items).
+
+Response: `ApiResponse<MenuResponse>`.
+
+Errores:
+
+- `404` si el menu no existe o no pertenece al cook.
+
 ### POST `/menus`
 
 Auth `COOK`. Crea menu.
@@ -1138,7 +1148,7 @@ incluido es un deep link a la app — no lleva token ni requiere nada especial p
 | COOK | Crear empresa | `POST /companies` |
 | COOK | Confirmar eliminacion empresa | `DELETE /companies/{id}` (requiere confirmacion en front) |
 | COOK | Invitaciones | `GET /companies/{id}/global-invitation`, `POST /companies/{id}/global-invitation`, `POST /companies/{id}/invitations` |
-| COOK | Menus | `GET /menus`, `POST /menus`, `POST /menus/{id}/clone`, `POST /menus/{id}/items`, `PATCH /menus/{id}/publish` |
+| COOK | Menus | `GET /menus`, `GET /menus/{id}`, `POST /menus`, `POST /menus/{id}/clone`, `POST /menus/{id}/items`, `PATCH /menus/{id}/publish` |
 | COOK | Pedidos de hoy | `GET /orders/today`, `GET /orders/stream` |
 | COOK | Estado pedido | `PATCH /orders/{id}/preparing`, `/out-for-delivery`, `/delivered`, `/cancel` |
 | COOK | Reparto | `/delivery-sessions` |
