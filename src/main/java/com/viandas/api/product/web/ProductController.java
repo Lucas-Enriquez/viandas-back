@@ -18,7 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.viandas.api.auth.security.SecurityUtils;
 import com.viandas.api.menu.domain.MenuItemCategory;
 import com.viandas.api.product.application.ProductService;
-import com.viandas.api.product.dto.request.ProductRequest;
+import com.viandas.api.product.dto.request.ProductCreateRequest;
+import com.viandas.api.product.dto.request.ProductPatchRequest;
 import com.viandas.api.product.dto.response.ProductResponse;
 import com.viandas.api.product.dto.response.UploadSignatureResponse;
 import com.viandas.api.shared.ApiResponse;
@@ -45,7 +46,7 @@ public class ProductController {
 	}
 
 	@PostMapping
-	ApiResponse<ProductResponse> create(@Valid @RequestBody ProductRequest request) {
+	ApiResponse<ProductResponse> create(@Valid @RequestBody ProductCreateRequest request) {
 		return ApiResponse.ok("Producto creado", productService.create(SecurityUtils.currentUser(), request));
 	}
 
@@ -55,7 +56,7 @@ public class ProductController {
 	}
 
 	@PatchMapping("/{id}")
-	ApiResponse<ProductResponse> update(@PathVariable UUID id, @Valid @RequestBody ProductRequest request) {
+	ApiResponse<ProductResponse> update(@PathVariable UUID id, @Valid @RequestBody ProductPatchRequest request) {
 		return ApiResponse.ok("Producto actualizado", productService.update(SecurityUtils.currentUser(), id, request));
 	}
 

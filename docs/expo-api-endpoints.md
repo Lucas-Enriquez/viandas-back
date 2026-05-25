@@ -661,7 +661,7 @@ Reglas:
 ### POST `/menus/{id}/clone`
 
 Auth `COOK`. Crea un nuevo menu en `DRAFT` copiando los items de uno existente.
-Pensado para el flujo diario: clonar el menu de ayer, ajustar lo que cambio, publicar.
+Pensado para el flujo diario: clonar el ultimo menu del cook, ajustar lo que cambio, publicar.
 
 Request:
 
@@ -989,19 +989,20 @@ Nota actual: el backend guarda dispositivos, pero el envio FCM real esta como no
 
 Este es el flujo que el cook ejecuta cada mañana para las ~40 empresas.
 
-**1. Obtener el menu de ayer para clonar**
+**1. Obtener el ultimo menu del cook para clonar**
 
 ```
-GET /menus?date={ayer}
+GET /menus
 ```
 
-Buscar el menu global con `scope = "GLOBAL"` de la fecha anterior.
-Guardar su `id`.
+Sin filtros: devuelve los menus del cook ordenados por `menuDate DESC, id DESC`.
+Tomar el primer resultado — es el ultimo menu creado (puede ser de ayer, del viernes, o de hace mas tiempo si hubo un fin de semana o feriado).
+Guardar su `id`. Conviene mostrar en la UI la fecha de ese menu (`menuDate`) para que el cook sepa de donde sale el clon.
 
 **2. Clonar al dia de hoy**
 
 ```
-POST /menus/{idDeAyer}/clone
+POST /menus/{idDelUltimo}/clone
 { "date": "2026-05-08" }
 ```
 

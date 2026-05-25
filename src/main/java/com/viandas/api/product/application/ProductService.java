@@ -8,9 +8,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.viandas.api.auth.security.CurrentUser;
+import com.viandas.api.menu.domain.MenuItem;
 import com.viandas.api.menu.domain.MenuItemCategory;
+import com.viandas.api.menu.domain.MenuStatus;
+import com.viandas.api.menu.persistence.MenuItemRepository;
 import com.viandas.api.product.domain.Product;
-import com.viandas.api.product.dto.request.ProductRequest;
+import com.viandas.api.product.dto.request.ProductCreateRequest;
+import com.viandas.api.product.dto.request.ProductPatchRequest;
 import com.viandas.api.product.dto.response.ProductResponse;
 import com.viandas.api.product.dto.response.UploadSignatureResponse;
 import com.viandas.api.product.persistence.ProductRepository;
@@ -24,14 +28,17 @@ public class ProductService {
 	private final ProductRepository productRepository;
 	private final UserRepository userRepository;
 	private final PhotoUploadService photoUploadService;
+	private final MenuItemRepository menuItemRepository;
 
 	public ProductService(
 			ProductRepository productRepository,
 			UserRepository userRepository,
-			PhotoUploadService photoUploadService) {
+			PhotoUploadService photoUploadService,
+			MenuItemRepository menuItemRepository) {
 		this.productRepository = productRepository;
 		this.userRepository = userRepository;
 		this.photoUploadService = photoUploadService;
+		this.menuItemRepository = menuItemRepository;
 	}
 
 	public List<ProductResponse> list(CurrentUser currentUser, MenuItemCategory category) {
@@ -47,7 +54,7 @@ public class ProductService {
 	}
 
 	@Transactional
-	public ProductResponse create(CurrentUser currentUser, ProductRequest request) {
+	public ProductResponse create(CurrentUser currentUser, ProductCreateRequest request) {
 		requireCook(currentUser);
 		String name = request.name().trim();
 		if (productRepository.existsByCookIdAndNameIgnoreCase(currentUser.userId(), name)) {
@@ -62,19 +69,54 @@ public class ProductService {
 	}
 
 	@Transactional
-	public ProductResponse update(CurrentUser currentUser, UUID id, ProductRequest request) {
+	public ProductResponse update(CurrentUser currentUser, UUID id, ProductPatchRequest request) {
 		Product product = requireOwnedProduct(currentUser, id);
-		String name = request.name().trim();
-		if (productRepository.existsByCookIdAndNameIgnoreCaseAndIdNot(currentUser.userId(), name, id)) {
-			throw ApiException.conflict("Ya existe un producto con ese nombre");
+
+		if (request.name() != null) {
+			String name = request.name().trim();
+			if (name.isEmpty()) {
+				throw ApiException.badRequest("El nombre no puede estar vacio");
+			}
+			if (productRepository.existsByCookIdAndNameIgnoreCaseAndIdNot(currentUser.userId(), name, id)) {
+				throw ApiException.conflict("Ya existe un producto con ese nombre");
+			}
+			product.setName(name);
 		}
-		product.setName(name);
-		product.setPrice(request.price());
-		product.setCategory(request.category());
-		applyPhoto(product, request.photoPublicId());
-		product.setDescription(request.description());
+
+		if (request.price() != null) {
+			product.setPrice(request.price());
+		}
+
+		if (request.category() != null) {
+			product.setCategory(request.category());
+		}
+
+		if (request.photoPublicId() != null) {
+			applyPhoto(product, request.photoPublicId());
+		}
+
+		if (request.description() != null) {
+			product.setDescription(request.description());
+		}
+
 		product.setUpdatedAt(Instant.now());
+		syncDraftMenuItems(product);
 		return toResponse(product);
+	}
+
+	/**
+	 * Propaga los datos actuales del producto a los MenuItems que lo referencian
+	 * y cuyo menu esta en DRAFT. Los items de menus publicados quedan intactos
+	 * (snapshot historico).
+	 */
+	private void syncDraftMenuItems(Product product) {
+		List<MenuItem> items = menuItemRepository.findByProductIdAndMenuStatus(product.getId(), MenuStatus.DRAFT);
+		for (MenuItem item : items) {
+			item.setName(product.getName());
+			item.setPrice(product.getPrice());
+			item.setCategory(product.getCategory());
+			item.setPhotoUrl(product.getPhotoUrl());
+		}
 	}
 
 	@Transactional
